@@ -1,0 +1,11 @@
+name = "Dorothy"
+uuid = "06790106-a23a-11e8-0061-036e133e6d60"
+authors = ["Olivier Fisette <ofisette@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+FormatStreams = "6bb377a4-aa12-11e8-0b8b-dd9755c73f41"
+Formats = "eb180938-a0cb-11e8-14d8-335c76514f04"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
