@@ -105,24 +105,24 @@ function readpdb!(io::IO, model::MolecularModel, ids::AbstractVector{<:Integer},
     end
 
     @debug "parsing particle records" nparticles
-    prevline = repeat(" " , 78)
+    prevline = repeat("\n" , 78)
     for (i, (ln, line)) in enumerate(atomrecords)
         @debug "parsing particle record" i ln
         @debug "parsing id"
         ids[i] = parse(Int, SubString(line, 7, 11))
         @debug "parsing name"
-        names[i] = strip(line, 13, 16)
+        names[i] = substrip(line, 13, 16)
         @debug "parsing resname"
         if subsetsequal(line, prevline, 18, 21)
             resnames[i] = resnames[i-1]
         else
-            resnames[i] = strip(line, 18, 21)
+            resnames[i] = substrip(line, 18, 21)
         end
         @debug "parsing chainid"
         if subsetsequal(line, prevline, 22, 22)
             chainids[i] = chainids[i-1]
         else
-            chainids[i] = strip(line, 22, 22)
+            chainids[i] = substrip(line, 22, 22)
         end
         @debug "parsing resid"
         resids[i] = parse(Int, SubString(line, 23, 26))
@@ -140,7 +140,7 @@ function readpdb!(io::IO, model::MolecularModel, ids::AbstractVector{<:Integer},
         if subsetsequal(line, prevline, 77, 78)
             elements[i] = elements[i-1]
         else
-            elements[i] = strip(line, 77, 78)
+            elements[i] = substrip(line, 77, 78)
         end
         prevline = line
     end

@@ -106,7 +106,7 @@ function readgromos87!(ids::AbstractVector{<:Integer},
         resnames::AbstractVector{<:AbstractString}, R::AbstractMatrix{<:Real},
         V::Union{AbstractMatrix{<:Real},Nothing},
         records::AbstractVector{<:Tuple{Integer,AbstractString}})
-    prevline = repeat(" " , 68)
+    prevline = repeat("\n" , 68)
     for (i, (ln, line)) in enumerate(records)
         @debug "parsing particle record" i ln
         @debug "parsing resid"
@@ -115,10 +115,10 @@ function readgromos87!(ids::AbstractVector{<:Integer},
         if subsetsequal(line, prevline, 6, 10)
             resnames[i] = resnames[i-1]
         else
-            resnames[i] = strip(line, 6, 10)
+            resnames[i] = substrip(line, 6, 10)
         end
         @debug "parsing name"
-        names[i] = strip(line, 11, 15)
+        names[i] = substrip(line, 11, 15)
         @debug "parsing id"
         ids[i] = parse(Int, SubString(line, 16, 20))
         @debug "parsing Rx"

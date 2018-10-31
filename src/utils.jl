@@ -6,9 +6,9 @@ using .Iterators: drop
 
 export
 		τ, emptyindices, checkindexseries, isindexseries, deleteat_map,
-		splice_map, readuntil!, subsetsequal, wraptext, ncols, eachcol, nrows,
-		eachrow, VectorBasedMatrix, FixedArray, ReadonlyArray, ScalarArray,
-		SingleScalarVector, SelfVector, RangeVector
+		splice_map, readuntil!, subsetsequal, substrip, wraptext, ncols,
+		eachcol, nrows, eachrow, VectorBasedMatrix, FixedArray, ReadonlyArray,
+		ScalarArray, SingleScalarVector, SelfVector, RangeVector
 
 const τ = 2π
 
@@ -77,25 +77,11 @@ function readuntil!(src::IO, dest::AbstractArray{UInt8}, delim::UInt8)
 	dest
 end
 
-function Base.startswith(V::AbstractVector, prefix::AbstractVector)
-	n = length(prefix)
-	if n > length(V)
-		false
-	else
-		for i = 1:n
-			if V[i] != prefix[i]
-				return false
-			end
-		end
-		true
-	end
-end
-
-function Base.strip(str::AbstractString, i0::Integer, i1::Integer)
-	while str[i0] == ' ' && i0 <= i1
+function substrip(str::AbstractString, i0::Integer, i1::Integer)
+	while i0 <= i1 && str[i0] == ' '
 		i0 += 1
 	end
-	while str[i1] == ' ' && i1 > i0
+	while i1 > i0 && str[i1] == ' '
 		i1 -= 1
 	end
 	str[i0:i1]
