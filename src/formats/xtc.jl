@@ -356,20 +356,20 @@ function read3dfcoord!(io::IO, R::AbstractArray{<:Real}, meta::XTCMetadata,
 					prevcoord[2] = uic[y]
 					prevcoord[3] = uic[z]
 				end
-				fic[j] = prevcoord[1]
+				fic[j] = uic[x]
 				j += 1
-				fic[j] = prevcoord[2]
+				fic[j] = uic[y]
 				j += 1
-				fic[j] = prevcoord[3]
+				fic[j] = uic[z]
 				j += 1
 				k += 3
 			end
 		else
-			fic[j] = prevcoord[1]
+			fic[j] = uic[x]
 			j += 1
-			fic[j] = prevcoord[2]
+			fic[j] = uic[y]
 			j += 1
-			fic[j] = prevcoord[3]
+			fic[j] = uic[z]
 			j += 1
 		end
 		smallidx += is_smaller

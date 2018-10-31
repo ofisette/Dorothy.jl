@@ -99,9 +99,9 @@ function decode_xdr_ints!(nums::Vector{T}, bytes::Vector{T},
 		sizes::Vector{T}, pos::T) where {T<:Integer}
 	@inbounds begin
 		local num_of_bytes::T, i::T, j::T, p::T
-		bytes[1] = 0
 		bytes[2] = 0
 		bytes[3] = 0
+		bytes[4] = 0
 		num_of_bytes = 0
 		while num_of_bits > 8
 			bytes[num_of_bytes+1] = decode_xdr_bits!(state, buf, T(8))
