@@ -356,11 +356,6 @@ function read3dfcoord!(io::IO, R::AbstractArray{<:Real}, meta::XTCMetadata,
 					prevcoord[2] = uic[y]
 					prevcoord[3] = uic[z]
 				end
-<<<<<<< HEAD
-=======
-				# BUG: Should this be uic rather than prevcoord? Maybe it does
-				# not matter.
->>>>>>> e27ce144fb20390b2677b2ae779a2ce400791ff1
 				fic[j] = uic[x]
 				j += 1
 				fic[j] = uic[y]
@@ -370,10 +365,6 @@ function read3dfcoord!(io::IO, R::AbstractArray{<:Real}, meta::XTCMetadata,
 				k += 3
 			end
 		else
-<<<<<<< HEAD
-=======
-			# BUG: Should this be uic rather than prevcoord?
->>>>>>> e27ce144fb20390b2677b2ae779a2ce400791ff1
 			fic[j] = uic[x]
 			j += 1
 			fic[j] = uic[y]
