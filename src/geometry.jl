@@ -303,14 +303,14 @@ function fitline(R::AbstractMatrix{<:Real},
     V = similar(R, 3)
     comR = similar(R, 3)
     Rc = similar(R)
-    fitline!(V, comR, Rc, R)
+    fitline!(V, comR, Rc, R, W)
 end
 
 function fitline!(V::AbstractVector{<:Real}, comR::AbstractVector{<:Real},
         Rc::AbstractMatrix{<:Real}, R::AbstractMatrix{<:Real},
         W::AbstractVector{<:Real})
     Rc .= R
-    com!(comR, Rc)
+    com!(comR, Rc, W)
     Rc .-= comR
     lmul!(Diagonal(W), Rc')
     V .= svd(Rc').V[:,1]

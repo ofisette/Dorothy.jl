@@ -86,6 +86,18 @@ datapath = joinpath(@__DIR__, "..", "data")
         @test rmsd(m1.R, m2.R) + 1.0 ≈ 1.0
     end
 
+    @testset "Fit line" begin
+        m = readf("$(datapath)/1BTL.pdb")
+        h1 = view(m, 1:120) # First α helix
+        V, comR = fitline(h1.R)
+        @test V ≈ [0.7767115502007541, 0.3946883305177638, 0.4908566894092842]
+        @test comR ≈ [12.60863333333333, 7.342849999999999, 12.188675000000002]
+    end
+
+    @testset "Fit plane" begin
+        
+    end
+
     @testset "PBC" begin
         c1 = pbccell(30.0)
         @test c1[1,1] == 30.0
