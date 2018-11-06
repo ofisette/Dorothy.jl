@@ -74,6 +74,18 @@ datapath = joinpath(@__DIR__, "..", "data")
                 P1 ≈ [1.0, 2.0, 1.0]
     end
 
+    @testset "Superposition" begin
+        m1 = readf("$(datapath)/1BTL.pdb")
+        m2 = MolecularModel(m1)
+        @test rmsd(m1.R, m2.R) ≈ 0.0
+        m1.R = translation(25.0, 30.0, -1.0) * rotation(τ/4, :z) *
+                translation(-5.0, 3.0, 1.0) * m2.R
+        @test rmsd(m1.R, m2.R) ≈ 36.167398917591804
+        tr = superposition(m1.R, m2.R)
+        m1.R .= tr * m1.R
+        @test rmsd(m1.R, m2.R) + 1.0 ≈ 1.0
+    end
+
     @testset "PBC" begin
         c1 = pbccell(30.0)
         @test c1[1,1] == 30.0

@@ -3,6 +3,7 @@
 module Geometry
 
 using LinearAlgebra
+using Statistics
 using ..Dorothy.Utils
 
 export
@@ -83,25 +84,25 @@ cog(R::AbstractMatrix{<:Real}) = cog!(similar(R, nrows(R)), R)
 cog!(dest::AbstractVector{<:Real}, R::AbstractMatrix{<:Real}) =
         com!(dest, R, ScalarArray(1.0, ncols(R)))
 
-rmsd(R::AbstractMatrix{<:Real}, S::AbstractMatrix{<:Real}) =
-        rmsd(R, S, ScalarArray(1.0, ncols(R)))
-
 rmsd(R1::AbstractMatrix{<:Real}, R2::AbstractMatrix{<:Real},
-        W::AbstractVector{<:Real}) = sqrt(rms(R, S, W))
+        W::AbstractVector{<:Real} = ScalarArray(1.0, ncols(R1))) =
+        sqrt(msd(R1, R2, W))
 
-msd(R1::AbstractMatrix{<:Real}, R2::AbstractMatrix{<:Real}) =
-        msd(R, S, ScalarArray(1.0, ncols(R)))
-
-function msd(R::AbstractMatrix{<:Real}, S::AbstractMatrix{<:Real},
-        W::AbstractVector{<:Real})
-    ncols, nrows = size(R)
-    @boundscheck size(S)[2] == length(W) == ncols ||
-            error("dimension mismatch between position and/or weight arrays")
+function msd(R1::AbstractMatrix{<:Real}, R2::AbstractMatrix{<:Real},
+        W::AbstractVector{<:Real} = ScalarArray(1.0, ncols(R1)))
+    nrows, ncols = size(R1)
+    @boundscheck begin
+        size(R2) == (nrows, ncols) ||
+                error("dimension mismatch between position matrices")
+        length(W) == ncols ||
+                error("dimension mismatch between position and weight arrays")
+    end
     sd = 0.0
     meanW = mean(W)
     for i = 1:ncols
         for j = 1:nrows
-            sd += (S[j,i] - R[j,i])^2 * W[i] / meanW
+            d = R2[j,i] - R1[j,i]
+            sd += d^2 * W[i] / meanW
         end
     end
     sd / ncols
@@ -243,52 +244,52 @@ scaling(x::Real, y::Real, z::Real) = scaling([x,y,z])
 
 scaling(c::Real) = scaling(c, c, c)
 
-@inline function superposition(R::AbstractMatrix{<:Real},
-        S::AbstractMatrix{<:Real},
-        W::AbstractVector{<:Real} = ScalarArray(1.0, ncols(R));
+@inline function superposition(R1::AbstractMatrix{<:Real},
+        R2::AbstractMatrix{<:Real},
+        W::AbstractVector{<:Real} = ScalarArray(1.0, ncols(R1));
         alg::Symbol = :kabsch, kwargs...)
     @boundscheck begin
-        size(R) == size(S) || error("incompatible position matrices")
-        length(W) == ncols(R) || error("incompatible weight vector")
-        nrows(R) == nrows(S) == 3 || error("expected 3-coordinate positions")
+        size(R1) == size(R2) || error("incompatible position matrices")
+        length(W) == ncols(R1) || error("incompatible weight vector")
+        nrows(R1) == nrows(R2) == 3 || error("expected 3-coordinate positions")
     end
-    superposition(Val(alg), R, S, W; kwargs...)
+    superposition(Val(alg), R1, R2, W; kwargs...)
 end
 
-@inline superposition(::Val{alg}, R::AbstractMatrix{<:Real},
-        S::AbstractMatrix{<:Real}, W::AbstractVector{<:Real}; kwargs...) where
+@inline superposition(::Val{alg}, R1::AbstractMatrix{<:Real},
+        R2::AbstractMatrix{<:Real}, W::AbstractVector{<:Real}; kwargs...) where
         {alg} = error("unknown superposition algorithm: $(alg)")
 
-@inline superposition(::Val{:kabsch}, R::AbstractMatrix{<:Real},
-        S::AbstractMatrix{<:Real}, W::AbstractVector{<:Real}; kwargs...) =
-        kabsch(R, S, W; kwargs...)
+@inline superposition(::Val{:kabsch}, R1::AbstractMatrix{<:Real},
+        R2::AbstractMatrix{<:Real}, W::AbstractVector{<:Real}; kwargs...) =
+        kabsch(R1, R2, W; kwargs...)
 
-function kabsch(R::AbstractMatrix{<:Real}, S::AbstractMatrix{<:Real},
-        W::AbstractVector{<:Real}; kwargs...)
-    H = similar(R, 3,3)
-    comR = similar(R, 3)
-    comS = similar(R, 3)
-    Rc = similar(R)
-    Sc = similar(S)
-    kabsch!(H, comR, comS, Rc, Sc, R, S, W; kwargs...)
+function kabsch(R1::AbstractMatrix{<:Real}, R2::AbstractMatrix{<:Real},
+        W::AbstractVector{<:Real})
+    H = similar(R1, 3,3)
+    comR1 = similar(R1, 3)
+    comR2 = similar(R2, 3)
+    R1c = similar(R1)
+    R2c = similar(R2)
+    kabsch!(H, comR1, comR2, R1c, R2c, R1, R2, W)
 end
 
-function kabsch!(H::AbstractMatrix{<:Real}, comR::AbstractVector{<:Real},
-        comS::AbstractVector{<:Real}, Rc::AbstractMatrix{<:Real},
-        Sc::AbstractMatrix{<:Real}, R::AbstractMatrix{<:Real},
-        S::AbstractMatrix{<:Real}, W::AbstractVector{<:Real})
-    Rc .= R
-    Sc .= S
-    com!(comR, Rc, W)
-    com!(comS, Sc, W)
-    Rc .-= comR
-    Sc .-= comS
-    mul!(H, Sc, lmul!(Diagonal(W), Rc'))
+function kabsch!(H::AbstractMatrix{<:Real}, comR1::AbstractVector{<:Real},
+        comR2::AbstractVector{<:Real}, R1c::AbstractMatrix{<:Real},
+        R2c::AbstractMatrix{<:Real}, R1::AbstractMatrix{<:Real},
+        R2::AbstractMatrix{<:Real}, W::AbstractVector{<:Real})
+    R1c .= R1
+    R2c .= R2
+    com!(comR1, R1c, W)
+    com!(comR2, R2c, W)
+    R1c .-= comR1
+    R2c .-= comR2
+    mul!(H, R2c, lmul!(Diagonal(W), R1c'))
     U, _, V = svd(H)
     if sign(det(V') * det(U)) < 0
         V'[3,:] .= -V'[3,:]
     end
-    Translation(cogS) * LinearTransformation(U * V') * Translation(-cogR)
+    Translation(comR2) * LinearTransformation(U * V') * Translation(-comR1)
 end
 
 function fitline(R::AbstractMatrix{<:Real},
