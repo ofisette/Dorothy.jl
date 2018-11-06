@@ -339,7 +339,7 @@ function fitplane!(V::AbstractVector{<:Real}, comR::AbstractVector{<:Real},
         Rc::AbstractMatrix{<:Real}, R::AbstractMatrix{<:Real},
         W::AbstractVector{<:Real})
     Rc .= R
-    com!(comR, Rc)
+    com!(comR, Rc, W)
     Rc .-= comR
     lmul!(Diagonal(W), Rc')
     V .= svd(Rc').V[:,3]

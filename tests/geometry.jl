@@ -95,7 +95,11 @@ datapath = joinpath(@__DIR__, "..", "data")
     end
 
     @testset "Fit plane" begin
-        
+        m = readf("$(datapath)/1BTL.pdb")
+        h18 = view(m, [1:120; 1866:2032])
+        V, comR = fitplane(h18.R)
+        @test V ≈ [-0.02187509375361663, 0.815568953125186, -0.578246282280793]
+        @test comR ≈ [9.50672822299652, 10.308843205574918, 15.995000000000005]
     end
 
     @testset "PBC" begin
