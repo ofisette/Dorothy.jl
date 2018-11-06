@@ -96,7 +96,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 
     @testset "Fit plane" begin
         m = readf("$(datapath)/1BTL.pdb")
-        h18 = view(m, [1:120; 1866:2032])
+        h18 = view(m, [1:120; 1866:2032]) # First and last α helices
         V, comR = fitplane(h18.R)
         @test V ≈ [-0.02187509375361663, 0.815568953125186, -0.578246282280793]
         @test comR ≈ [9.50672822299652, 10.308843205574918, 15.995000000000005]
@@ -114,6 +114,25 @@ datapath = joinpath(@__DIR__, "..", "data")
         @test iscubic(pbcbox(c1)...)
         @test volume(c1) == 30.0^3
         @test volume(pbcbox(c1)...) == 30.0^3
+    end
+
+    @testset "Wrap" begin
+        m1 = readf("$(datapath)/1BTL.pdb")
+        @test count(x -> (x < 0.0), m1.R) == 1581 # Coords outside the cell.
+        wrappos!(m1.R, m1.header.cell)
+        @test count(x -> (x < 0.0), m1.R) == 0
+        m2 = readf("$(datapath)/1BTL.pdb")
+        m2.R[1,:] .-= 6.0
+        m2.R[2,:] .-= 3.0
+        cogR = cog(m2.R)
+        @test cogR[1] < 0.0
+        @test cogR[2] < 0.0
+        @test cogR[3] > 0.0
+        wrapcog!(m2.R, m2.header.cell)
+        cogR = cog(m2.R)
+        @test cogR[1] > 0.0
+        @test cogR[2] > 0.0
+        @test cogR[3] > 0.0
     end
 
 end # @testset
