@@ -121,7 +121,7 @@ function guesstopology!(topology::AbstractGraph, model::ParticleCollection;
         tol::Real = 0.1)
     @boundscheck tol > 0 || error("expected strictly positive tolerance")
     cell = get(model.header, :cell) do
-        lengths = size(extent(model)) .+
+        lengths = dim(extent(model)) .+
                 (1.0+tol)^2 * 2.0 * maximum(values(covalent_radius))
         pbccell(lengths...)
     end
@@ -136,7 +136,7 @@ end
 
 function guesstopology!(topology::AbstractGraph,
         elements::AbstractVector{<:AbstractString}, Rk::AbstractMatrix{<:Real},
-        cell::PBCCell; tol::Real)
+        cell::PBCCell; tol::Real = 0.1)
     dmax = (1.0+tol) * 2.0 * maximum(values(covalent_radius))
     g3 = append!(KspaceGrid3{Int}(cell, dmax), Rk, 1:ncols(Rk))
     Tk = similar(Rk, 3)

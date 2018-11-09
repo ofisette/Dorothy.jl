@@ -13,13 +13,13 @@ export
 
         superposition, kabsch, kabsch!, fitline, fitline!, fitplane, fitplane!,
 
-        BoundingBox, extent, extent!, center,
+        BoundingBox, extent, extent!, dim, center,
 
         PBCCell, pbccell, pbcbox, volume, iscubic, ishexagonal,
 		istetragonal, isorthorhombic, ismonoclinic, isinside, isinside!,
 
-		wrappos!, wrapcog!, compactpos!, compactcog!, unwrapextrema, unwrap!,
-		mindist, sqmindist, sqmindist!, mintrans!,
+		wrappos!, wrapcog!, unwrappedmaxdim, unwrapbydim!, mindist, sqmindist,
+        compactpos!, compactcog!, sqmindist!, mintrans!,
 
         OrthoGrid3, KspaceGrid3, findcell, findnear, findnear!
 
@@ -244,52 +244,53 @@ scaling(x::Real, y::Real, z::Real) = scaling([x,y,z])
 
 scaling(c::Real) = scaling(c, c, c)
 
-@inline function superposition(R1::AbstractMatrix{<:Real},
-        R2::AbstractMatrix{<:Real},
-        W::AbstractVector{<:Real} = ScalarArray(1.0, ncols(R1));
+@inline function superposition(R::AbstractMatrix{<:Real},
+        Rref::AbstractMatrix{<:Real},
+        W::AbstractVector{<:Real} = ScalarArray(1.0, ncols(R));
         alg::Symbol = :kabsch, kwargs...)
     @boundscheck begin
-        size(R1) == size(R2) || error("incompatible position matrices")
-        length(W) == ncols(R1) || error("incompatible weight vector")
-        nrows(R1) == nrows(R2) == 3 || error("expected 3-coordinate positions")
+        size(R) == size(Rref) || error("incompatible position matrices")
+        length(W) == ncols(R) || error("incompatible weight vector")
+        nrows(R) == nrows(Rref) == 3 || error("expected 3-coordinate positions")
     end
-    superposition(Val(alg), R1, R2, W; kwargs...)
+    superposition(Val(alg), R, Rref, W; kwargs...)
 end
 
-@inline superposition(::Val{alg}, R1::AbstractMatrix{<:Real},
-        R2::AbstractMatrix{<:Real}, W::AbstractVector{<:Real}; kwargs...) where
-        {alg} = error("unknown superposition algorithm: $(alg)")
+@inline superposition(::Val{alg}, R::AbstractMatrix{<:Real},
+        Rref::AbstractMatrix{<:Real}, W::AbstractVector{<:Real};
+        kwargs...) where {alg} =
+        error("unknown superposition algorithm: $(alg)")
 
-@inline superposition(::Val{:kabsch}, R1::AbstractMatrix{<:Real},
-        R2::AbstractMatrix{<:Real}, W::AbstractVector{<:Real}; kwargs...) =
-        kabsch(R1, R2, W; kwargs...)
+@inline superposition(::Val{:kabsch}, R::AbstractMatrix{<:Real},
+        Rref::AbstractMatrix{<:Real}, W::AbstractVector{<:Real}; kwargs...) =
+        kabsch(R, Rref, W; kwargs...)
 
-function kabsch(R1::AbstractMatrix{<:Real}, R2::AbstractMatrix{<:Real},
+function kabsch(R::AbstractMatrix{<:Real}, Rref::AbstractMatrix{<:Real},
         W::AbstractVector{<:Real})
-    H = similar(R1, 3,3)
-    comR1 = similar(R1, 3)
-    comR2 = similar(R2, 3)
-    R1c = similar(R1)
-    R2c = similar(R2)
-    kabsch!(H, comR1, comR2, R1c, R2c, R1, R2, W)
+    H = similar(R, 3,3)
+    comR = similar(R, 3)
+    comRref = similar(Rref, 3)
+    Rc = similar(R)
+    Rrefc = similar(Rref)
+    kabsch!(H, comR, comRref, Rc, Rrefc, R, Rref, W)
 end
 
-function kabsch!(H::AbstractMatrix{<:Real}, comR1::AbstractVector{<:Real},
-        comR2::AbstractVector{<:Real}, R1c::AbstractMatrix{<:Real},
-        R2c::AbstractMatrix{<:Real}, R1::AbstractMatrix{<:Real},
-        R2::AbstractMatrix{<:Real}, W::AbstractVector{<:Real})
-    R1c .= R1
-    R2c .= R2
-    com!(comR1, R1c, W)
-    com!(comR2, R2c, W)
-    R1c .-= comR1
-    R2c .-= comR2
-    mul!(H, R2c, lmul!(Diagonal(W), R1c'))
+function kabsch!(H::AbstractMatrix{<:Real}, comR::AbstractVector{<:Real},
+        comRref::AbstractVector{<:Real}, Rc::AbstractMatrix{<:Real},
+        Rrefc::AbstractMatrix{<:Real}, R::AbstractMatrix{<:Real},
+        Rref::AbstractMatrix{<:Real}, W::AbstractVector{<:Real})
+    Rc .= R
+    Rrefc .= Rref
+    com!(comR, Rc, W)
+    com!(comRref, Rrefc, W)
+    Rc .-= comR
+    Rrefc .-= comRref
+    mul!(H, Rrefc, lmul!(Diagonal(W), Rc'))
     U, _, V = svd(H)
     if sign(det(V') * det(U)) < 0
         V'[3,:] .= -V'[3,:]
     end
-    Translation(comR2) * LinearTransformation(U * V') * Translation(-comR1)
+    Translation(comRref) * LinearTransformation(U * V') * Translation(-comR)
 end
 
 function fitline(R::AbstractMatrix{<:Real},
@@ -381,16 +382,34 @@ function extent!(bb::BoundingBox{<:Real}, R::AbstractMatrix{<:Real})
     bb
 end
 
-Base.size(bb::BoundingBox) = bb.maximum - bb.minimum
+dim(bb::BoundingBox) = bb.maximum - bb.minimum
 
 Base.minimum(bb::BoundingBox) = copy(bb.minimum)
 
 Base.maximum(bb::BoundingBox) = copy(bb.maximum)
 
 function center(bb::BoundingBox)
-    A = size(bb)
+    A = dim(bb)
     A ./= 2
     A .+= bb.minimum
+end
+
+function isinside(A::AbstractVector{<:Real}, bb::BoundingBox)
+	for i in eachindex(A)
+		if A < bb.minimum[i] || A > bb.maximum[i]
+			return false
+		end
+	end
+	true
+end
+
+function isinside(bb1::BoundingBox, bb2::BoundingBox)
+	for i in eachindex(bb2.minimum)
+		if bb1.minimum[i] < bb2.minimum[i] || bb1.maximum[i] > bb2.maximum[i]
+			return false
+		end
+	end
+	true
 end
 
 struct PBCCell{T<:Real} <: AbstractMatrix{T}
@@ -511,11 +530,11 @@ function wrappos!(R::Union{AbstractVector{<:Real},AbstractMatrix{<:Real}},
     wrappos!(R, Ak, cell)
 end
 
-function wrappos!(R::AbstractMatrix{<:Real}, Ak::AbstractVector{<:Real},
+function wrappos!(R::AbstractMatrix{<:Real}, Rik::AbstractVector{<:Real},
         cell::PBCCell)
     for i = 1:ncols(R)
-        A = @view R[:,i]
-		wrappos!(A, Ak, cell)
+        Ri = @view R[:,i]
+		wrappos!(Ri, Rik, cell)
     end
     R
 end
@@ -531,89 +550,69 @@ wrappos!(Rk::Union{AbstractVector{<:Real},AbstractMatrix{<:Real}}) =
         (Rk .-= floor.(Rk))
 
 function wrapcog!(R::AbstractMatrix{T}, cell::PBCCell) where {T<:Real}
-    Rc = similar(R, 3)
-    Rck = similar(R, 3)
-    wrapcog!(R, Rc, Rck, cell)
+    cogR = similar(R, 3)
+    cogRk = similar(R, 3)
+    wrapcog!(R, cogR, cogRk, cell)
 end
 
-function wrapcog!(R::AbstractMatrix{<:Real}, Rc::AbstractVector{<:Real},
-        Rck::AbstractVector{<:Real}, cell::PBCCell)
-    cog!(Rc, R)
-    R .-= Rc
-    wrappos!(Rc, Rck, cell)
-    R .+= Rc
+function wrapcog!(R::AbstractMatrix{<:Real}, cogR::AbstractVector{<:Real},
+        cogRk::AbstractVector{<:Real}, cell::PBCCell)
+    cog!(cogR, R)
+    R .-= cogR
+    wrappos!(cogR, cogRk, cell)
+    R .+= cogR
 end
 
-function compactpos!(R::Union{AbstractVector{<:Real},AbstractMatrix{<:Real}},
-		cell::PBCCell)
-    Ak = similar(R, 3)
-    compactpos!(R, Ak, cell)
+unwrappedmaxdim(cell::PBCCell, dmax::Real = 2.5) =
+    	cell.inv * [dmax, dmax, dmax]
+
+function unwrapbydim!(R::AbstractMatrix{<:Real}, cell::PBCCell,
+        Dkmax::AbstractVector{<:Real})
+	Rk = similar(R)
+    Rksi = similar(R, ncols(R))
+	unwrapbydim!(R, Rk, Rksi, cell, Dkmax)
 end
 
-function compactpos!(R::AbstractMatrix{<:Real}, Ak::AbstractVector{<:Real},
-        cell::PBCCell)
-    for i = 1:ncols(R)
-        A = @view R[:,i]
-        compactpos!(A, Ak, cell)
+function unwrapbydim!(R::AbstractMatrix{<:Real}, Rk::AbstractMatrix{<:Real},
+        Rksi::AbstractVector{<:Real}, cell::PBCCell,
+        Dkmax::AbstractVector{<:Real})
+	mul!(Rk, cell.inv, R)
+	unwrapbydim!(Rk, Rksi, Dkmax)
+	mul!(R, cell, Rk)
+end
+
+function unwrapbydim!(Rk::AbstractMatrix{<:Real}, Rksi::AbstractVector{<:Real},
+		Dkmax::AbstractVector{<:Real})
+    for i in eachindex(Dkmax)
+        Rki = @view Rk[i,:]
+        minRki, maxRki = extrema(Rki)
+        if maxRki - minRki > 1.0 - Dkmax[i]
+            Rki .-= 0.5
+            wrappos!(Rki)
+            Rki .+= 0.5
+            minRki, maxRki = extrema(Rki)
+            if maxRki - minRki > 1.0 - Dkmax[i]
+                wrappos!(Rki)
+                Rksi .= Rki
+                sort!(Rksi)
+                k = 0
+                for j = 1:length(Rksi)-1
+                    if Rksi[j+1] - Rksi[j] > Dkmax[i]
+                        k = j
+                        break
+                    end
+                end
+                if k == 0
+                    error("failed to unwrap from dimensions")
+                else
+                    t = Rksi[k] + Dkmax[i] / 2
+                    Rki .-= t
+                    wrappos!(Rki)
+                    Rki .+= t
+                end
+            end
+        end
     end
-    R
-end
-
-function compactpos!(A::AbstractVector{<:Real}, Ak::AbstractVector{<:Real},
-        cell::PBCCell)
-    mul!(Ak, cell.inv, A)
-    compactpos!(Ak)
-    mul!(A, cell, Ak)
-end
-
-function compactpos!(Rk::Union{AbstractVector{<:Real},AbstractMatrix{<:Real}})
-	Rk .+= 0.5
-	wrappos!(Rk)
-	Rk .-= 0.5
-end
-
-function compactcog!(R::AbstractMatrix{<:Real}, cell::PBCCell)
-    Rc = similar(R, 3)
-    Rck = similar(R, 3)
-    compactcog!(R, Rc, Rck, cell)
-end
-
-function compactcog!(R::AbstractMatrix{<:Real}, Rc::AbstractVector{<:Real},
-        Rck::AbstractVector{<:Real}, cell::PBCCell)
-    cog!(Rc, R)
-    R .-= Rc
-    compactcog!(Rc, Rck, cell)
-    R .+= Rc
-end
-
-function unwrapextrema(cell::PBCCell, dmax::Real = 2.5)
-	D = cell.inv * [dmax, dmax, dmax]
-	BoundingBox(0.0.+D, 1.0.-D)
-end
-
-function unwrap!(R::AbstractMatrix{<:Real}, cell::PBCCell, dmax::Real = 2.5)
-	G = cell.inv * R
-	T = similar(R, 3)
-	bb = BoundingBox{eltype(R)}(undef, 3)
-	bbmax = unwrapextrema(cell, dmax)
-	unwrap!(G, T, bb, bbmax)
-	mul!(R, cell, G)
-end
-
-function unwrap!(Rk::AbstractMatrix{<:Real}, Tk::AbstractVector{<:Real},
-		bb::BoundingBox, extrema::BoundingBox)
-	extent!(bb, Rk)
-	for i in eachindex(T)
-		if bb.minimum[i] < extrema.minimum[i] &&
-				bb.maximum[i] > extrema.maximum[i]
-			Tk[i] = 0.5
-		else
-			Tk[i] = 0.0
-		end
-	end
-	Rk .+= Tk
-	wrappos!(Rk)
-	Rk .-= Tk
 end
 
 mindist(A::AbstractVector{<:Real}, B::AbstractVector{<:Real}, cell::PBCCell) =
@@ -645,6 +644,49 @@ function mintrans!(Tk::AbstractVector{<:Real}, Ak::AbstractVector{<:Real},
 	Tk .= min.(Tk, 1.0 .- Tk)
 end
 
+function compactpos!(R::Union{AbstractVector{<:Real},AbstractMatrix{<:Real}},
+		cell::PBCCell)
+    Ak = similar(R, 3)
+    compactpos!(R, Ak, cell)
+end
+
+function compactpos!(R::AbstractMatrix{<:Real}, Rik::AbstractVector{<:Real},
+        cell::PBCCell)
+    for i = 1:ncols(R)
+        Ri = @view R[:,i]
+        compactpos!(Ri, Rik, cell)
+    end
+    R
+end
+
+function compactpos!(A::AbstractVector{<:Real}, Ak::AbstractVector{<:Real},
+        cell::PBCCell)
+    mul!(Ak, cell.inv, A)
+    compactpos!(Ak)
+    mul!(A, cell, Ak)
+end
+
+function compactpos!(Rk::Union{AbstractVector{<:Real},AbstractMatrix{<:Real}})
+    # wrappos!(Rk)
+	Rk .+= 0.5
+	wrappos!(Rk)
+	Rk .-= 0.5
+end
+
+function compactcog!(R::AbstractMatrix{<:Real}, cell::PBCCell)
+    Rc = similar(R, 3)
+    Rck = similar(R, 3)
+    compactcog!(R, Rc, Rck, cell)
+end
+
+function compactcog!(R::AbstractMatrix{<:Real}, Rc::AbstractVector{<:Real},
+        Rck::AbstractVector{<:Real}, cell::PBCCell)
+    cog!(Rc, R)
+    R .-= Rc
+    compactcog!(Rc, Rck, cell)
+    R .+= Rc
+end
+
 abstract type Grid3{T} <: AbstractArray{T,3}
     #=
     struct
@@ -661,9 +703,9 @@ struct OrthoGrid3{T} <: Grid3{T}
     d::Float64
 
 	function OrthoGrid3{T}(bb::BoundingBox, d::Real) where {T}
-		@boundscheck d > 0.0 || error("invalid cell size")
+		@boundscheck d > 0.0 || error("invalid cell dimension")
         O = minimum(bb)
-        S = size(bb)
+        S = dim(bb)
         N = floor.(Int, S ./ d) .+ 1
         cells = Array{Vector{T},3}(undef, N...)
         for i in eachindex(cells)
@@ -682,7 +724,7 @@ struct KspaceGrid3{T} <: Grid3{T}
 	function KspaceGrid3{T}(D::AbstractVector{<:Real}) where {T}
 		@boundscheck begin
 			for d in D
-                d > 0.0 || error("invalid cell size")
+                d > 0.0 || error("invalid cell dimension")
             end
 		end
         N = floor.(Int, 1.0 ./ D)

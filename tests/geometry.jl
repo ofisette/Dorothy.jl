@@ -135,4 +135,28 @@ datapath = joinpath(@__DIR__, "..", "data")
         @test cogR[3] > 0.0
     end
 
+    @testset "Unwrap" begin
+        m1 = readf("$(datapath)/1BTL.pdb")
+        m1.header.cell = pbccell(48.0, 64.0, 91.0)
+        protein = view(m1, 1:2032)
+        prewrapdim = dim(extent(protein.R))
+        wrappos!(m1.R, m1.header.cell)
+        @test all(dim(extent(protein.R)) .>= prewrapdim)
+        Dkmax = unwrappedmaxdim(protein.header.cell)
+        unwrapbydim!(protein.R, protein.header.cell, Dkmax)
+        unwrappedext = extent(protein.R)
+        @test dim(unwrappedext) ≈ prewrapdim
+        @test all(minimum(unwrappedext) .>= 0.0)
+    end
+
+    #=
+    @testset "Compact" begin
+        # Get a small rhdo box and compactify it. Do the same to a full molecule
+        # such as a protein.
+        m1 = readf("$(datapath)/MHC.pdb")
+        compactpos!(m1.R, m1.header.cell)
+        writef("$(datapath)/test.pdb", m1)
+    end
+    =#
+
 end # @testset
