@@ -5,12 +5,12 @@ using FormatStreams
 datapath = joinpath(@__DIR__, "..", "data")
 
 function xtcloop(traj::MolecularTrajectory, frame::MolecularModel, n::Integer)
-    for i = 1:n
-        seekstart(traj)
-        while !eof(traj)
-            read!(traj, frame)
-        end
-    end
+	for i = 1:n
+		seekstart(traj)
+		while !eof(traj)
+			read!(traj, frame)
+		end
+	end
 end
 
 traj = streamf(IOBuffer(read("$(datapath)/eMHC.xtc")))
