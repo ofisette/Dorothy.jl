@@ -10,5 +10,5 @@ readf("$(datapath)/PLC.pdb")
 @profile (for i = 1:2; readf("$(datapath)/PLC.pdb"); end)
 
 open("$(profilepath)/pdbread.txt", "w") do io
-    Profile.print(IOContext(io, :displaysize => (24, 500)))
+	Profile.print(IOContext(io, :displaysize => (24, 500)))
 end
