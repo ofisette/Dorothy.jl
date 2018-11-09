@@ -184,17 +184,17 @@ Multicollections.colltoitemprop(::Particle, ::Val{:chainids}) = :chainid
 Multicollections.itemtocollprop(::Particle, ::Val{:element}) = :elements
 Multicollections.colltoitemprop(::Particle, ::Val{:elements}) = :element
 
-Multicollections.itemtocollprop(::Particle, ::Val{:r}) = :R
-Multicollections.colltoitemprop(::Particle, ::Val{:R}) = :r
+Multicollections.itemtocollprop(::Particle, ::Val{:R}) = :R
+Multicollections.colltoitemprop(::Particle, ::Val{:R}) = :R
 
-Multicollections.itemtocollprop(::Particle, ::Val{:rk}) = :Rk
-Multicollections.colltoitemprop(::Particle, ::Val{:Rk}) = :rk
+Multicollections.itemtocollprop(::Particle, ::Val{:Rk}) = :Rk
+Multicollections.colltoitemprop(::Particle, ::Val{:Rk}) = :Rk
 
-Multicollections.itemtocollprop(::Particle, ::Val{:v}) = :V
-Multicollections.colltoitemprop(::Particle, ::Val{:V}) = :v
+Multicollections.itemtocollprop(::Particle, ::Val{:V}) = :V
+Multicollections.colltoitemprop(::Particle, ::Val{:V}) = :V
 
-Multicollections.itemtocollprop(::Particle, ::Val{:f}) = :F
-Multicollections.colltoitemprop(::Particle, ::Val{:F}) = :v
+Multicollections.itemtocollprop(::Particle, ::Val{:F}) = :F
+Multicollections.colltoitemprop(::Particle, ::Val{:F}) = :F
 
 Multicollections.itemtocollprop(::Particle, ::Val{:mass}) = :masses
 Multicollections.colltoitemprop(::Particle, ::Val{:masses}) = :mass

@@ -27,7 +27,7 @@ function guesselements!(elements::AbstractVector{<:AbstractString},
 end
 
 function guessmass(name::AbstractString, element::AbstractString)
-    get(standard_atomic_weight, element) do
+    get(standard_atomic_weights, element) do
         if isvsite(name)
             0.0
         else
@@ -122,7 +122,7 @@ function guesstopology!(topology::AbstractGraph, model::ParticleCollection;
     @boundscheck tol > 0 || error("expected strictly positive tolerance")
     cell = get(model.header, :cell) do
         lengths = dim(extent(model)) .+
-                (1.0+tol)^2 * 2.0 * maximum(values(covalent_radius))
+                (1.0+tol)^2 * 2.0 * maximum(values(covalent_radii))
         pbccell(lengths...)
     end
     Rk = get(model, :Rk) do
@@ -137,7 +137,7 @@ end
 function guesstopology!(topology::AbstractGraph,
         elements::AbstractVector{<:AbstractString}, Rk::AbstractMatrix{<:Real},
         cell::PBCCell; tol::Real = 0.1)
-    dmax = (1.0+tol) * 2.0 * maximum(values(covalent_radius))
+    dmax = (1.0+tol) * 2.0 * maximum(values(covalent_radii))
     g3 = append!(KspaceGrid3{Int}(cell, dmax), Rk, 1:ncols(Rk))
     Tk = similar(Rk, 3)
     T = similar(Rk, 3)
@@ -146,8 +146,8 @@ function guesstopology!(topology::AbstractGraph,
         Ak = @view Rk[:,i]
         for j in findnear!(J, g3, Ak)
             if i < j
-                ri = covalent_radius[elements[i]]
-                rj = covalent_radius[elements[j]]
+                ri = covalent_radii[elements[i]]
+                rj = covalent_radii[elements[j]]
                 Bk = @view Rk[:,j]
                 mintrans!(Tk, Ak, Bk)
                 mul!(T, cell, Tk)

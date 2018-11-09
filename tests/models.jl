@@ -125,7 +125,7 @@ datapath = joinpath(@__DIR__, "..", "data")
         end
         m1.R = fill(0.0, (3,10))
         m1.ids = 1:10
-        @test m1[1].r == [0.0, 0.0, 0.0]
+        @test m1[1].R == [0.0, 0.0, 0.0]
         @test m1[2].id == 2
         show(IOBuffer(), m1[3])
         p1 = m1[4]

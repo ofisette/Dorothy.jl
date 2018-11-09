@@ -70,33 +70,33 @@ function namematcher(s0::AbstractString, S::AbstractString...)
     end
 end
 
-const hydrogen_name = "H*"
+const hydrogen_name_pattern = "H*"
 
-const vsite_name = ["MC*", "MN*", "MTRP*", "MW", "LP"]
+const vsite_name_pattern = ["MC*", "MN*", "MTRP*", "MW", "LP"]
 
-const water_resname = ["HOH", "SOL", "TIP*", "WAT*"]
+const water_resname_pattern = ["HOH", "SOL", "TIP*", "WAT*"]
 
-const acid_protein_resname = ["ASP", "GLU"]
+const acid_protein_resname_pattern = ["ASP", "GLU"]
 
-const basic_protein_resname = ["ARG", "LYS"]
+const basic_protein_resname_pattern = ["ARG", "LYS"]
 
-const charged_protein_resname =
-		[acid_protein_resname..., basic_protein_resname...]
+const charged_protein_resname_pattern =
+		[acid_protein_resname_pattern..., basic_protein_resname_pattern...]
 
-const polar_protein_resname =
+const polar_protein_resname_pattern =
 		["ASN", "CYS", "GLN", "HIS", "SER", "THR", "TRP", "TYR"]
 
-const hydrophobic_protein_resname =
+const hydrophobic_protein_resname_pattern =
 		["ALA", "GLY", "ILE", "LEU", "MET", "PHE", "PRO", "VAL"]
 
-const protein_resname =
-		[charged_protein_resname...,
-		 polar_protein_resname...,
-		 hydrophobic_protein_resname...]
+const protein_resname_pattern =
+		[charged_protein_resname_pattern...,
+		 polar_protein_resname_pattern...,
+		 hydrophobic_protein_resname_pattern...]
 
 # J.L. King, T.H. Jukes. Science, 164(3881):788-98, 1969.
 # doi:10.1126/science.164.3881.788
-const vertebrate_aa_frequency = Dict(
+const vertebrate_aa_frequencies = Dict(
 		"ALA" => 0.74,
 		"ARG" => 0.42,
 		"ASN" => 0.44,
@@ -118,109 +118,112 @@ const vertebrate_aa_frequency = Dict(
 		"TYR" => 0.33,
 		"VAL" => 0.68)
 
-const mainchain_name = ["N", "H", "CA", "C", "O", "OC1", "OC2", "OXT"]
+const mainchain_name_pattern = ["N", "H", "CA", "C", "O", "OC1", "OC2", "OXT"]
 
-const backbone_name = ["N", "CA", "C"]
+const backbone_name_pattern = ["N", "CA", "C"]
 
-const nuclacid_resname = ["A", "C", "G", "U", "DA", "DC", "DG", "DT"]
+const nuclacid_resname_pattern = ["A", "C", "G", "U", "DA", "DC", "DG", "DT"]
 
-const lipid_resname = ["D3PC", "DLPC", "DLPE", "DLPG", "DMPA", "DMPC", "DMPG",
-		"DOPC", "DOPE", "DOPG", "DOPS", "DPPC", "DPPE", "DPPG", "DPPS", "DSPG",
-		"POPC", "POPE", "POPG", "POPS"]
+const lipid_resname_pattern = ["D3PC", "DLPC", "DLPE", "DLPG", "DMPA", "DMPC",
+        "DMPG", "DOPC", "DOPE", "DOPG", "DOPS", "DPPC", "DPPE", "DPPG", "DPPS",
+        "DSPG", "POPC", "POPE", "POPG", "POPS"]
 
-const monatomic_ion_resname = ["NA", "CL", "CA", "MG", "K", "RB", "CS", "LI",
-        "ZN", "H", "SR", "BA", "AL", "AG", "FE", "CU", "F", "BR", "I", "O",
-        "S", "N", "P"]
+const monatomic_ion_resname_pattern = ["NA", "CL", "CA", "MG", "K", "RB", "CS",
+        "LI", "ZN", "H", "SR", "BA", "AL", "AG", "FE", "CU", "F", "BR", "I",
+        "O", "S", "N", "P"]
 
-const polyatomic_ion_resname =
+const polyatomic_ion_resname_pattern =
         ["CN", "CO3", "NO2", "NO3", "O2", "OH", "PO3", "PO4", "SO3", "SO4"]
 
-const ion_resname = [monatomic_ion_resname..., polyatomic_ion_resname...]
+const ion_resname_pattern =
+        [monatomic_ion_resname_pattern..., polyatomic_ion_resname_pattern...]
 
-alphahelix_ss = "H"
-helix310_ss = "G"
-pihelix_ss = "I"
-turn_ss = "T"
-strand_ss = "E"
-bridge_ss = "B"
-coil_ss = "C"
-bend_ss = "S"
+const alphahelix_ss_pattern = "H"
+const helix310_ss_pattern = "G"
+const pihelix_ss_pattern = "I"
+const turn_ss_pattern = "T"
+const strand_ss_pattern = "E"
+const bridge_ss_pattern = "B"
+const coil_ss_pattern = "C"
+const bend_ss_pattern = "S"
 
-helix_ss = [alphahelix_ss, helix310_ss, pihelix_ss, turn_ss]
-sheet_ss = [strand_ss, bridge_ss]
-loop_ss = [coil_ss, bend_ss]
+const helix_ss_pattern = [alphahelix_ss_pattern, helix310_ss_pattern,
+        pihelix_ss_pattern, turn_ss_pattern]
+const sheet_ss_pattern = [strand_ss_pattern, bridge_ss_pattern]
+const loop_ss_pattern = [coil_ss_pattern, bend_ss_pattern]
 
-const ishydrogen = namematcher(hydrogen_name)
+const ishydrogen = namematcher(hydrogen_name_pattern)
 
 isheavy(name) = !ishydrogen(name)
 
-const isvsite = namematcher(vsite_name...)
+const isvsite = namematcher(vsite_name_pattern...)
 
-const iswater = namematcher(water_resname...)
+const iswater = namematcher(water_resname_pattern...)
 
-const isprotein = namematcher(sort(protein_resname,
-        by=(resname -> vertebrate_aa_frequency[resname]))...)
+const isprotein = namematcher(sort(protein_resname_pattern,
+        by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
-const isacidresidue = namematcher(sort(acid_protein_resname,
-        by=(resname -> vertebrate_aa_frequency[resname]))...)
+const isacidresidue = namematcher(sort(acid_protein_resname_pattern,
+        by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
-const isbasicresidue = namematcher(sort(basic_protein_resname,
-        by=(resname -> vertebrate_aa_frequency[resname]))...)
+const isbasicresidue = namematcher(sort(basic_protein_resname_pattern,
+        by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
-const ischargedresidue = namematcher(sort(charged_protein_resname,
-        by=(resname -> vertebrate_aa_frequency[resname]))...)
+const ischargedresidue = namematcher(sort(charged_protein_resname_pattern,
+        by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
-const ispolarresidue = namematcher(sort(polar_protein_resname,
-        by=(resname -> vertebrate_aa_frequency[resname]))...)
+const ispolarresidue = namematcher(sort(polar_protein_resname_pattern,
+        by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
-const ishydrophobicresidue = namematcher(sort(hydrophobic_protein_resname,
-        by=(resname -> vertebrate_aa_frequency[resname]))...)
+const ishydrophobicresidue =
+        namematcher(sort(hydrophobic_protein_resname_pattern,
+        by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
-const ismainchainname = namematcher(mainchain_name...)
+const ismainchainname = namematcher(mainchain_name_pattern...)
 
 ismainchain(name, resname) = ismainchainname(name) && isprotein(resname)
 
 issidechain(name, resname) = !ismainchainname(name) && isprotein(resname)
 
-const isbackbonename = namematcher(backbone_name...)
+const isbackbonename = namematcher(backbone_name_pattern...)
 
 isbackbone(name, resname) = isbackbonename(name) && isprotein(resname)
 
-const isnuclacid = namematcher(nuclacid_resname...)
+const isnuclacid = namematcher(nuclacid_resname_pattern...)
 
-const islipid = namematcher(lipid_resname...)
+const islipid = namematcher(lipid_resname_pattern...)
 
-const ision = namematcher(ion_resname...)
+const ision = namematcher(ion_resname_pattern...)
 
-const ismonatomicion = namematcher(monatomic_ion_resname...)
+const ismonatomicion = namematcher(monatomic_ion_resname_pattern...)
 
-const ispolyatomicion = namematcher(polyatomic_ion_resname...)
+const ispolyatomicion = namematcher(polyatomic_ion_resname_pattern...)
 
-const ishelix = namematcher(helix_ss...)
+const ishelix = namematcher(helix_ss_pattern...)
 
-const isalphahelix = namematcher(alphahelix_ss)
+const isalphahelix = namematcher(alphahelix_ss_pattern)
 
-const ishelix310 = namematcher(helix310_ss)
+const ishelix310 = namematcher(helix310_ss_pattern)
 
-const ispihelix = namematcher(pihelix_ss)
+const ispihelix = namematcher(pihelix_ss_pattern)
 
-const isturn = namematcher(turn_ss)
+const isturn = namematcher(turn_ss_pattern)
 
-const issheet = namematcher(sheet_ss...)
+const issheet = namematcher(sheet_ss_pattern...)
 
-const isstrand = namematcher(strand_ss)
+const isstrand = namematcher(strand_ss_pattern)
 
-const isbridge = namematcher(bridge_ss)
+const isbridge = namematcher(bridge_ss_pattern)
 
-const isloop = namematcher(loop_ss...)
+const isloop = namematcher(loop_ss_pattern...)
 
-const iscoil = namematcher(coil_ss)
+const iscoil = namematcher(coil_ss_pattern)
 
-const isbend = namematcher(bend_ss)
+const isbend = namematcher(bend_ss_pattern)
 
 # J. Meija et al. Pure Appl. Chem., 88(3):265-91, 2016.
 # doi:10.1515/pac-2015-0305
-const standard_atomic_weight = Dict(
+const standard_atomic_weights = Dict(
 		"H"  => 1.008,
 		"He" => 4.002,
 		"Li" => 6.94,
@@ -307,7 +310,7 @@ const standard_atomic_weight = Dict(
 		"U"  => 238.03)
 
 # B. Cordero et al. Dalton Trans., (21):2832-8, 2008. doi:0.1039/b801115j
-covalent_radius = Dict(
+const covalent_radii = Dict(
     "H"  => 0.31,
     "He" => 0.28,
     "Li" => 1.28,
