@@ -20,22 +20,22 @@ export
 
 function size_of_xdr_int(size::T) where {T<:Integer}
 	local num::T, num_of_bits::T
-    num = 1
-    num_of_bits = 0
-    while (size >= num && num_of_bits < 32)
+	num = 1
+	num_of_bits = 0
+	while (size >= num && num_of_bits < 32)
 		num_of_bits += 1
 		num <<= 1
 	end
-    num_of_bits
+	num_of_bits
 end
 
 function size_of_xdr_ints!(bytes::Vector{T}, sizes::Vector{T}) where
 		{T<:Integer}
 	local num_of_bytes::T, num_of_bits::T, tmp::T, bytecnt::T, num::T,
 			last_byte::T
-    num_of_bytes = 1
-    num_of_bits = 0
-    bytes[1] = 1
+	num_of_bytes = 1
+	num_of_bits = 0
+	bytes[1] = 1
 	for size::Int in sizes
 		tmp = 0
 		bytecnt = 1
@@ -52,14 +52,14 @@ function size_of_xdr_ints!(bytes::Vector{T}, sizes::Vector{T}) where
 		end
 		num_of_bytes = bytecnt - 1
 	end
-    num = 1
+	num = 1
 	last_byte = bytes[num_of_bytes]
 	num_of_bytes -= 1
-    while last_byte >= num
+	while last_byte >= num
 		num_of_bits += 1
 		num *= 2
 	end
-    num_of_bits + num_of_bytes * 8
+	num_of_bits + num_of_bytes * 8
 end
 
 function decode_xdr_bits!(state::Vector{T}, buf::Vector{UInt8},

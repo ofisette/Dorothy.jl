@@ -6,26 +6,26 @@ using Formats
 using FormatStreams
 
 export
-        MolecularModelHeader, MolecularModel, MolecularModelView,
-        ParticleCollection, Particle, MolecularTrajectory,
+		MolecularModelHeader, MolecularModel, MolecularModelView,
+		ParticleCollection, Particle, MolecularTrajectory,
 
-        hierarchy, eachchain, eachresidue, eachlocalresidue, eachfragment,
-        chainindices, residueindices, fragmentindices,
+		hierarchy, eachchain, eachresidue, eachlocalresidue, eachfragment,
+		chainindices, residueindices, fragmentindices,
 
-        wrapid, unwrapids!, unwrapnames!,
+		wrapid, unwrapids!, unwrapnames!,
 
-        namematcher, ishydrogen, isheavy, isvsite, iswater, isprotein,
-        isacidresidue, isbasicresidue, ischargedresidue, ispolarresidue,
-        ishydrophobicresidue, ismainchain, issidechain, isbackbone, isnuclacid,
-        islipid, ision, ismonatomicion, ispolyatomicion, isalphahelix,
-        ishelix310, ispihelix, isturn, isstrand, isbridge, iscoil, isbend,
-        ishelix, issheet, isloop,
+		namematcher, ishydrogen, isheavy, isvsite, iswater, isprotein,
+		isacidresidue, isbasicresidue, ischargedresidue, ispolarresidue,
+		ishydrophobicresidue, ismainchain, issidechain, isbackbone, isnuclacid,
+		islipid, ision, ismonatomicion, ispolyatomicion, isalphahelix,
+		ishelix310, ispihelix, isturn, isstrand, isbridge, iscoil, isbend,
+		ishelix, issheet, isloop,
 
-        guesselements!, guessmasses!, guessss!, guesstopology!,
+		guesselements!, guessmasses!, guessss!, guesstopology!,
 
-        SelectionCache, SelectBy, Selector, pick, Selectors,
+		SelectionCache, SelectBy, Selector, pick, Selectors,
 
-        DorothyIO
+		DorothyIO
 
 include("utils.jl")
 include("header.jl")
@@ -54,11 +54,11 @@ include("formats/xtc.jl")
 include("formats/ndx.jl")
 
 function __init__()
-    Gromos87.register_gromos87()
-    PDB.register_pdb()
-    TRR.register_trr()
-    XTC.register_xtc()
-    NDX.register_ndx()
+	Gromos87.register_gromos87()
+	PDB.register_pdb()
+	TRR.register_trr()
+	XTC.register_xtc()
+	NDX.register_ndx()
 end
 
 end # module

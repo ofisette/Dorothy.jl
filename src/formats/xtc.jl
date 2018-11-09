@@ -23,59 +23,59 @@ const xtc_firstidx = XTCInt(9)
 const xtc_lastidx = XTCInt(length(xtc_magicints))
 
 function register_xtc()
-    Formats.addformat("trajectory/x-xtc")
-    Formats.addextension("trajectory/x-xtc", ".xtc")
-    Formats.addsignature("trajectory/x-xtc", [0x00,0x00,0x07,0xcb])
-    Formats.addreader("trajectory/x-xtc", DorothyIO())
-    Formats.addwriter("trajectory/x-xtc", DorothyIO())
-    FormatStreams.addstreamer("trajectory/x-xtc", DorothyIO())
+	Formats.addformat("trajectory/x-xtc")
+	Formats.addextension("trajectory/x-xtc", ".xtc")
+	Formats.addsignature("trajectory/x-xtc", [0x00,0x00,0x07,0xcb])
+	Formats.addreader("trajectory/x-xtc", DorothyIO())
+	Formats.addwriter("trajectory/x-xtc", DorothyIO())
+	FormatStreams.addstreamer("trajectory/x-xtc", DorothyIO())
 end
 
 FormatStreams.streamf(::DorothyIO, ::MIME"trajectory/x-xtc", io::T, args...;
-        kwargs...) where {T<:IO} = XTCStream{T}(io, args...; kwargs...)
+		kwargs...) where {T<:IO} = XTCStream{T}(io, args...; kwargs...)
 
 Base.read(::DorothyIO, ::MIME"trajectory/x-xtc", io::IO, args...; kwargs...) =
-        readxtc!(io, MolecularModel(), args...; kwargs...)
+		readxtc!(io, MolecularModel(), args...; kwargs...)
 
 Base.read!(::DorothyIO, ::MIME"trajectory/x-xtc", io::IO, model::MolecularModel,
-        args...; kwargs...) = readxtc!(io, model, args...; kwargs...)
+		args...; kwargs...) = readxtc!(io, model, args...; kwargs...)
 
 Base.write(::DorothyIO, ::MIME"trajectory/x-xtc", io::IO, model::MolecularModel,
-        args...; kwargs...) = writextc(io, model, args...; kwargs...)
+		args...; kwargs...) = writextc(io, model, args...; kwargs...)
 
 struct XTCMetadata
 	nparticles::Int
-    precision::Float64
+	precision::Float64
 
-    function XTCMetadata(nparticles::Integer, precision::Real = 1000.0)
-        @boundscheck begin
-            nparticles >= 0 || error("expected positive number of particles")
-            precision >= 0.0 || error("expected positive precision")
-        end
-        if nparticles <= 9
-            precision = 0.0
-        end
-        new(nparticles, precision)
-    end
+	function XTCMetadata(nparticles::Integer, precision::Real = 1000.0)
+		@boundscheck begin
+			nparticles >= 0 || error("expected positive number of particles")
+			precision >= 0.0 || error("expected positive precision")
+		end
+		if nparticles <= 9
+			precision = 0.0
+		end
+		new(nparticles, precision)
+	end
 end
 
 function read_xtc_metadata(io::IO)
-    skip(io, 4)
-    nparticles = read_xdr_int(io)
-    if nparticles <= 9
-        precision = 0.0
-    else
-        skip(io, 48)
-        precision = read_xdr_float(io)
-    end
-    XTCMetadata(nparticles, precision)
+	skip(io, 4)
+	nparticles = read_xdr_int(io)
+	if nparticles <= 9
+		precision = 0.0
+	else
+		skip(io, 48)
+		precision = read_xdr_float(io)
+	end
+	XTCMetadata(nparticles, precision)
 end
 
 function peek_xtc_metadata(io::IO)
-    mark(io)
-    meta = read_xtc_metadata(io)
-    reset(io)
-    meta
+	mark(io)
+	meta = read_xtc_metadata(io)
+	reset(io)
+	meta
 end
 
 struct XTCBuffer
@@ -111,22 +111,22 @@ struct XTCBuffer
 end
 
 mutable struct XTCStream{T<:IO} <: MolecularTrajectory
-    io::T
-    frameindices::Vector{Int}
-    pos::Int
-    meta::XTCMetadata
+	io::T
+	frameindices::Vector{Int}
+	pos::Int
+	meta::XTCMetadata
 	buffer::XTCBuffer
 
-    function XTCStream{T}(io::T; nparticles::Integer = -1,
-            precision::Real = 1000.0) where {T<:IO}
-        origin = position(io)
-        if eof(io)
-            meta = XTCMetadata(nparticles, precision)
-        else
-            meta = peek_xtc_metadata(io)
-        end
-        new(io, [origin], 0, meta, XTCBuffer(meta.nparticles))
-    end
+	function XTCStream{T}(io::T; nparticles::Integer = -1,
+			precision::Real = 1000.0) where {T<:IO}
+		origin = position(io)
+		if eof(io)
+			meta = XTCMetadata(nparticles, precision)
+		else
+			meta = peek_xtc_metadata(io)
+		end
+		new(io, [origin], 0, meta, XTCBuffer(meta.nparticles))
+	end
 end
 
 Base.close(s::XTCStream) = close(s.io)
@@ -136,56 +136,56 @@ Base.eof(s::XTCStream) = eof(s.io)
 Base.position(s::XTCStream) = s.pos
 
 function Base.seek(s::XTCStream, pos::Integer)
-    i = pos + 1
-    @boundscheck begin
-        i >= 0 || error("expected positive position")
-        if i > length(s.frameindices)
-            error("cannot seek to unknown position")
-        end
-    end
-    seek(s.io, s.frameindices[i])
-    s.pos = pos
+	i = pos + 1
+	@boundscheck begin
+		i >= 0 || error("expected positive position")
+		if i > length(s.frameindices)
+			error("cannot seek to unknown position")
+		end
+	end
+	seek(s.io, s.frameindices[i])
+	s.pos = pos
 	s
 end
 
 function Base.seekstart(s::XTCStream)
-    seek(s.io, s.frameindices[1])
-    s.pos = 0
+	seek(s.io, s.frameindices[1])
+	s.pos = 0
 	s
 end
 
 Base.read(s::XTCStream) = read!(s, MolecularModel())
 
 function Base.read!(s::XTCStream, model::MolecularModel)
-    readxtc!(s.io, model, s.meta, s.buffer)
-    s.pos += 1
-    if s.pos + 1 > length(s.frameindices)
-        push!(s.frameindices, position(s.io))
-    end
-    model
+	readxtc!(s.io, model, s.meta, s.buffer)
+	s.pos += 1
+	if s.pos + 1 > length(s.frameindices)
+		push!(s.frameindices, position(s.io))
+	end
+	model
 end
 
 #=
 function Base.write(s::XTCStream, model::MolecularModel)
-    @boundscheck eof(s.io) || error("writing must happen at end of trajectory")
-    writextc(s.io, model, s.meta, s.buffer)
-    s.pos += 1
-    push!(s.frameindices, position(s.io))
-    s.nframes += 1
+	@boundscheck eof(s.io) || error("writing must happen at end of trajectory")
+	writextc(s.io, model, s.meta, s.buffer)
+	s.pos += 1
+	push!(s.frameindices, position(s.io))
+	s.nframes += 1
 end
 =#
 
 function Base.truncate(s::XTCStream, n::Integer)
-    @boundscheck begin
-        n > 0 || error("expected positive value")
+	@boundscheck begin
+		n > 0 || error("expected positive value")
 		n + 1 > length(s.frameindices) &&
 				error("cannot truncate to unknown position")
-    end
-    truncate(s.io, s.frameindices[n+1])
+	end
+	truncate(s.io, s.frameindices[n+1])
 	deleteat!(s.frameindices, n+2:lastindex(s.frameindices))
-    if s.pos > n
-        s.pos = n
-    end
+	if s.pos > n
+		s.pos = n
+	end
 	s
 end
 

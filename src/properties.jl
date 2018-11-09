@@ -1,73 +1,73 @@
 # Properties of particles in molecular models
 
 function wrapid(id::Integer, max::Integer)
-    while id > max
-        id -= max + 1
-    end
-    id
+	while id > max
+		id -= max + 1
+	end
+	id
 end
 
 function unwrapids!(ids::AbstractVector{<:Integer}, max::Integer)
-    offset = 0
-    for i in eachindex(ids)
-        if ids[i] == 0
-            offset += max + 1
-        end
-        ids[i] += offset
-    end
-    ids
+	offset = 0
+	for i in eachindex(ids)
+		if ids[i] == 0
+			offset += max + 1
+		end
+		ids[i] += offset
+	end
+	ids
 end
 
 function unwrapnames!(names::AbstractVector{<:AbstractString})
-    for i in eachindex(names)
-        name = names[i]
-        if length(name) > 0 && isdigit(first(name))
-            names[i] = chop(name, head=1, tail=0) * first(name)
-        end
-    end
-    names
+	for i in eachindex(names)
+		name = names[i]
+		if length(name) > 0 && isdigit(first(name))
+			names[i] = chop(name, head=1, tail=0) * first(name)
+		end
+	end
+	names
 end
 
 function namematcher(pattern::AbstractString)
-    Istar = findall(==('*'), pattern)
-    nstars = length(Istar)
-    if nstars == 0
-        ==(pattern)
-    elseif nstars == 1
-        if length(pattern) == 1
-            name -> true
-        else
-            if Istar[1] == 1
-                suffix = chop(pattern, head=1, tail=0)
-                name -> endswith(name, suffix)
-            elseif Istar[1] == length(pattern)
-                prefix = chop(pattern)
-                name -> startswith(name, prefix)
-            else
-                error("wildcard * may only appear at start or end")
-            end
-        end
-    elseif nstars == 2
-        if Istar[1] != 1 || Istar[2] != length(pattern)
-            error("wildcard * may only appear at start or end")
-        else
-            name -> occursin(name, pattern)
-        end
-    else
-        error("wildcard * may only appear at start or end")
-    end
+	Istar = findall(==('*'), pattern)
+	nstars = length(Istar)
+	if nstars == 0
+		==(pattern)
+	elseif nstars == 1
+		if length(pattern) == 1
+			name -> true
+		else
+			if Istar[1] == 1
+				suffix = chop(pattern, head=1, tail=0)
+				name -> endswith(name, suffix)
+			elseif Istar[1] == length(pattern)
+				prefix = chop(pattern)
+				name -> startswith(name, prefix)
+			else
+				error("wildcard * may only appear at start or end")
+			end
+		end
+	elseif nstars == 2
+		if Istar[1] != 1 || Istar[2] != length(pattern)
+			error("wildcard * may only appear at start or end")
+		else
+			name -> occursin(name, pattern)
+		end
+	else
+		error("wildcard * may only appear at start or end")
+	end
 end
 
 function namematcher(s0::AbstractString, S::AbstractString...)
-    F = [namematcher(s) for s in [s0, S...]]
-    function (name)
-        for f in F
-            if f(name)
-                return true
-            end
-        end
-        false
-    end
+	F = [namematcher(s) for s in [s0, S...]]
+	function (name)
+		for f in F
+			if f(name)
+				return true
+			end
+		end
+		false
+	end
 end
 
 const hydrogen_name_pattern = "H*"
@@ -125,18 +125,18 @@ const backbone_name_pattern = ["N", "CA", "C"]
 const nuclacid_resname_pattern = ["A", "C", "G", "U", "DA", "DC", "DG", "DT"]
 
 const lipid_resname_pattern = ["D3PC", "DLPC", "DLPE", "DLPG", "DMPA", "DMPC",
-        "DMPG", "DOPC", "DOPE", "DOPG", "DOPS", "DPPC", "DPPE", "DPPG", "DPPS",
-        "DSPG", "POPC", "POPE", "POPG", "POPS"]
+		"DMPG", "DOPC", "DOPE", "DOPG", "DOPS", "DPPC", "DPPE", "DPPG", "DPPS",
+		"DSPG", "POPC", "POPE", "POPG", "POPS"]
 
 const monatomic_ion_resname_pattern = ["NA", "CL", "CA", "MG", "K", "RB", "CS",
-        "LI", "ZN", "H", "SR", "BA", "AL", "AG", "FE", "CU", "F", "BR", "I",
-        "O", "S", "N", "P"]
+		"LI", "ZN", "H", "SR", "BA", "AL", "AG", "FE", "CU", "F", "BR", "I",
+		"O", "S", "N", "P"]
 
 const polyatomic_ion_resname_pattern =
-        ["CN", "CO3", "NO2", "NO3", "O2", "OH", "PO3", "PO4", "SO3", "SO4"]
+		["CN", "CO3", "NO2", "NO3", "O2", "OH", "PO3", "PO4", "SO3", "SO4"]
 
 const ion_resname_pattern =
-        [monatomic_ion_resname_pattern..., polyatomic_ion_resname_pattern...]
+		[monatomic_ion_resname_pattern..., polyatomic_ion_resname_pattern...]
 
 const alphahelix_ss_pattern = "H"
 const helix310_ss_pattern = "G"
@@ -148,7 +148,7 @@ const coil_ss_pattern = "C"
 const bend_ss_pattern = "S"
 
 const helix_ss_pattern = [alphahelix_ss_pattern, helix310_ss_pattern,
-        pihelix_ss_pattern, turn_ss_pattern]
+		pihelix_ss_pattern, turn_ss_pattern]
 const sheet_ss_pattern = [strand_ss_pattern, bridge_ss_pattern]
 const loop_ss_pattern = [coil_ss_pattern, bend_ss_pattern]
 
@@ -161,23 +161,23 @@ const isvsite = namematcher(vsite_name_pattern...)
 const iswater = namematcher(water_resname_pattern...)
 
 const isprotein = namematcher(sort(protein_resname_pattern,
-        by=(resname -> vertebrate_aa_frequencies[resname]))...)
+		by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
 const isacidresidue = namematcher(sort(acid_protein_resname_pattern,
-        by=(resname -> vertebrate_aa_frequencies[resname]))...)
+		by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
 const isbasicresidue = namematcher(sort(basic_protein_resname_pattern,
-        by=(resname -> vertebrate_aa_frequencies[resname]))...)
+		by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
 const ischargedresidue = namematcher(sort(charged_protein_resname_pattern,
-        by=(resname -> vertebrate_aa_frequencies[resname]))...)
+		by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
 const ispolarresidue = namematcher(sort(polar_protein_resname_pattern,
-        by=(resname -> vertebrate_aa_frequencies[resname]))...)
+		by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
 const ishydrophobicresidue =
-        namematcher(sort(hydrophobic_protein_resname_pattern,
-        by=(resname -> vertebrate_aa_frequencies[resname]))...)
+		namematcher(sort(hydrophobic_protein_resname_pattern,
+		by=(resname -> vertebrate_aa_frequencies[resname]))...)
 
 const ismainchainname = namematcher(mainchain_name_pattern...)
 
@@ -311,99 +311,99 @@ const standard_atomic_weights = Dict(
 
 # B. Cordero et al. Dalton Trans., (21):2832-8, 2008. doi:0.1039/b801115j
 const covalent_radii = Dict(
-    "H"  => 0.31,
-    "He" => 0.28,
-    "Li" => 1.28,
-    "Be" => 0.96,
-    "B"  => 0.84,
-    "C"  => 0.76,
-    "N"  => 0.71,
-    "O"  => 0.66,
-    "F"  => 0.57,
-    "Ne" => 0.58,
-    "Na" => 1.66,
-    "Mg" => 1.41,
-    "Al" => 1.21,
-    "Si" => 1.11,
-    "P"  => 1.07,
-    "S"  => 1.05,
-    "Cl" => 1.02,
-    "Ar" => 1.06,
-    "K"  => 2.03,
-    "Ca" => 1.76,
-    "Sc" => 1.70,
-    "Ti" => 1.60,
-    "V"  => 1.53,
-    "Cr" => 1.39,
-    "Mn" => 1.39,
-    "Fe" => 1.32,
-    "Co" => 1.26,
-    "Ni" => 1.24,
-    "Cu" => 1.32,
-    "Zn" => 1.22,
-    "Ga" => 1.22,
-    "Ge" => 1.20,
-    "As" => 1.19,
-    "Se" => 1.20,
-    "Br" => 1.20,
-    "Kr" => 1.16,
-    "Rb" => 2.20,
-    "Sr" => 1.95,
-    "Y"  => 1.90,
-    "Zr" => 1.75,
-    "Nb" => 1.64,
-    "Mo" => 1.54,
-    "Tc" => 1.47,
-    "Ru" => 1.46,
-    "Rh" => 1.42,
-    "Pd" => 1.39,
-    "Ag" => 1.45,
-    "Cd" => 1.44,
-    "In" => 1.42,
-    "Sn" => 1.39,
-    "Sb" => 1.39,
-    "Te" => 1.38,
-    "I"  => 1.39,
-    "Xe" => 1.40,
-    "Cs" => 2.44,
-    "Ba" => 2.15,
-    "La" => 2.07,
-    "Ce" => 2.04,
-    "Pr" => 2.03,
-    "Nd" => 2.01,
-    "Pm" => 1.99,
-    "Sm" => 1.98,
-    "Eu" => 1.98,
-    "Gd" => 1.96,
-    "Tb" => 1.94,
-    "Dy" => 1.92,
-    "Ho" => 1.92,
-    "Er" => 1.89,
-    "Tm" => 1.90,
-    "Yb" => 1.87,
-    "Lu" => 1.87,
-    "Hf" => 1.75,
-    "Ta" => 1.70,
-    "W"  => 1.62,
-    "Re" => 1.51,
-    "Os" => 1.44,
-    "Ir" => 1.41,
-    "Pt" => 1.36,
-    "Au" => 1.36,
-    "Hg" => 1.32,
-    "Tl" => 1.45,
-    "Pb" => 1.46,
-    "Bi" => 1.48,
-    "Po" => 1.40,
-    "At" => 1.50,
-    "Rn" => 1.50,
-    "Fr" => 2.60,
-    "Ra" => 2.21,
-    "Ac" => 2.15,
-    "Th" => 2.06,
-    "Pa" => 2.00,
-    "U"  => 1.96,
-    "Np" => 1.90,
-    "Pu" => 1.87,
-    "Am" => 1.80,
-    "Cm" => 1.69)
+	"H"  => 0.31,
+	"He" => 0.28,
+	"Li" => 1.28,
+	"Be" => 0.96,
+	"B"  => 0.84,
+	"C"  => 0.76,
+	"N"  => 0.71,
+	"O"  => 0.66,
+	"F"  => 0.57,
+	"Ne" => 0.58,
+	"Na" => 1.66,
+	"Mg" => 1.41,
+	"Al" => 1.21,
+	"Si" => 1.11,
+	"P"  => 1.07,
+	"S"  => 1.05,
+	"Cl" => 1.02,
+	"Ar" => 1.06,
+	"K"  => 2.03,
+	"Ca" => 1.76,
+	"Sc" => 1.70,
+	"Ti" => 1.60,
+	"V"  => 1.53,
+	"Cr" => 1.39,
+	"Mn" => 1.39,
+	"Fe" => 1.32,
+	"Co" => 1.26,
+	"Ni" => 1.24,
+	"Cu" => 1.32,
+	"Zn" => 1.22,
+	"Ga" => 1.22,
+	"Ge" => 1.20,
+	"As" => 1.19,
+	"Se" => 1.20,
+	"Br" => 1.20,
+	"Kr" => 1.16,
+	"Rb" => 2.20,
+	"Sr" => 1.95,
+	"Y"  => 1.90,
+	"Zr" => 1.75,
+	"Nb" => 1.64,
+	"Mo" => 1.54,
+	"Tc" => 1.47,
+	"Ru" => 1.46,
+	"Rh" => 1.42,
+	"Pd" => 1.39,
+	"Ag" => 1.45,
+	"Cd" => 1.44,
+	"In" => 1.42,
+	"Sn" => 1.39,
+	"Sb" => 1.39,
+	"Te" => 1.38,
+	"I"  => 1.39,
+	"Xe" => 1.40,
+	"Cs" => 2.44,
+	"Ba" => 2.15,
+	"La" => 2.07,
+	"Ce" => 2.04,
+	"Pr" => 2.03,
+	"Nd" => 2.01,
+	"Pm" => 1.99,
+	"Sm" => 1.98,
+	"Eu" => 1.98,
+	"Gd" => 1.96,
+	"Tb" => 1.94,
+	"Dy" => 1.92,
+	"Ho" => 1.92,
+	"Er" => 1.89,
+	"Tm" => 1.90,
+	"Yb" => 1.87,
+	"Lu" => 1.87,
+	"Hf" => 1.75,
+	"Ta" => 1.70,
+	"W"  => 1.62,
+	"Re" => 1.51,
+	"Os" => 1.44,
+	"Ir" => 1.41,
+	"Pt" => 1.36,
+	"Au" => 1.36,
+	"Hg" => 1.32,
+	"Tl" => 1.45,
+	"Pb" => 1.46,
+	"Bi" => 1.48,
+	"Po" => 1.40,
+	"At" => 1.50,
+	"Rn" => 1.50,
+	"Fr" => 2.60,
+	"Ra" => 2.21,
+	"Ac" => 2.15,
+	"Th" => 2.06,
+	"Pa" => 2.00,
+	"U"  => 1.96,
+	"Np" => 1.90,
+	"Pu" => 1.87,
+	"Am" => 1.80,
+	"Cm" => 1.69)
