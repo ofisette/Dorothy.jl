@@ -10,7 +10,7 @@ export
 		ParticleCollection, Particle, MolecularTrajectory,
 
 		hierarchy, eachchain, eachresidue, eachlocalresidue, eachfragment,
-		chainindices, residueindices, fragmentindices,
+		chainat, residueat, fragmentat,
 
 		wrapid, unwrapids!, unwrapnames!,
 
@@ -23,7 +23,7 @@ export
 
 		guesselements!, guessmasses!, guessss!, guesstopology!,
 
-		SelectionCache, SelectBy, Selector, pick, Selectors,
+		SelectionCache, emptyframe!, SelectBy, Selector, pick, Selectors,
 
 		DorothyIO
 
@@ -31,12 +31,14 @@ include("utils.jl")
 include("header.jl")
 include("graphs.jl")
 include("geometry.jl")
+include("pbc.jl")
 include("multicolls.jl")
 
 using .Utils
 using .Headers
 using .Graphs
 using .Geometry
+using .PBC
 using .Multicollections
 
 include("models.jl")
@@ -53,12 +55,18 @@ include("formats/trr.jl")
 include("formats/xtc.jl")
 include("formats/ndx.jl")
 
+using .Gromos87
+using .PDB
+using .TRR
+using .XTC
+using .NDX
+
 function __init__()
-	Gromos87.register_gromos87()
-	PDB.register_pdb()
-	TRR.register_trr()
-	XTC.register_xtc()
-	NDX.register_ndx()
+	register_gromos87()
+	register_pdb()
+	register_trr()
+	register_xtc()
+	register_ndx()
 end
 
 end # module

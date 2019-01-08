@@ -218,11 +218,10 @@ Base.view(C::AbstractMulticollection, i::Integer) = MulticollectionView(C, [i])
 
 @inline Base.getindex(C::Multicollection, key::Symbol) = C.D[key]
 
-@inline Base.getindex(C::MulticollectionView, key::Symbol) =
-		collview(C.C[key], C.I)
+@inline Base.getindex(C::MulticollectionView, key::Symbol) = view(C.C[key], C.I)
 
 @inline Base.getindex(item::MulticollectionItem, key::Symbol) =
-		collscalar(item.C[itemtocollprop(item, key)], item.i)
+		item.C[itemtocollprop(item, key)][item.i]
 
 @inline function Base.setindex!(C::Multicollection, v, key::Symbol)
 	if haskey(C, key)
@@ -235,7 +234,7 @@ end
 @inline Base.setindex!(C::MulticollectionView, v, key::Symbol) = (C[key] .= v)
 
 @inline Base.setindex!(item::MulticollectionItem, v, key::Symbol) =
-		(collview(item.C[itemtocollprop(item, key)], [item.i]) .= v)
+		item.C[itemtocollprop(item, key)][item.i] = v
 
 Base.haskey(C::Multicollection, key::Symbol) = haskey(C.D, key)
 
@@ -395,14 +394,6 @@ function Base.insert!(C::Multicollection, i::Integer,
 	C
 end
 
-collview(X, I::AbstractArray{<:Integer}) = view(X, I)
-
-collview(M::AbstractMatrix, I::AbstractArray{<:Integer}) = view(M, :, I)
-
-collscalar(X, i::Integer) = X[i]
-
-collscalar(M::AbstractMatrix, i::Integer) = view(M, :, i)
-
 collunwrap(x) = x
 
 collunwrap(A::FixedArray) = A.A
@@ -427,20 +418,20 @@ struct MulticollectionSplit{T1<:AbstractMulticollection,
 		T2<:AbstractVector{<:AbstractVector{<:Integer}},
 		T3<:AbstractVector{<:Integer}}
 	C::T1
-	itemindices::T2
-	groupindices::T3
+	Igroup2items::T2
+	Iitem2group::T3
 
-	MulticollectionSplit{T1,T2,T3}(C::T1, itemindices::T2,
-			groupindices::T3) where {T1<:AbstractMulticollection,
+	MulticollectionSplit{T1,T2,T3}(C::T1, Igroup2items::T2,
+			Iitem2group::T3) where {T1<:AbstractMulticollection,
 			T2<:AbstractVector{<:AbstractVector{<:Integer}},
-			T3<:AbstractVector{<:Integer}} = new(C, itemindices, groupindices)
+			T3<:AbstractVector{<:Integer}} = new(C, Igroup2items, Iitem2group)
 end
 
-MulticollectionSplit(C::T1, itemindices::T2, groupindices::T3) where
+MulticollectionSplit(C::T1, Igroup2items::T2, Iitem2group::T3) where
 		{T1<:AbstractMulticollection,
 		T2<:AbstractVector{<:AbstractVector{<:Integer}},
 		T3<:AbstractVector{<:Integer}} =
-		MulticollectionSplit{T1,T2,T3}(C, itemindices, groupindices)
+		MulticollectionSplit{T1,T2,T3}(C, Igroup2items, Iitem2group)
 
 Base.show(io::IO, C::MulticollectionSplit) =
 		print(io, "$(typeof(C))($(length(C)))")
@@ -450,7 +441,7 @@ function Base.show(io::IO, ::MIME"text/plain", C::MulticollectionSplit)
 	show(io, MIME"text/plain"(), C.C)
 end
 
-Base.length(split::MulticollectionSplit) = length(split.itemindices)
+Base.length(split::MulticollectionSplit) = length(split.Igroup2items)
 
 Base.firstindex(split::MulticollectionSplit) = 1
 
@@ -465,10 +456,10 @@ Base.checkbounds(split::MulticollectionSplit, I) =
 		checkbounds(1:length(split), I)
 
 function Base.iterate(split::MulticollectionSplit, i::Integer = 1)
-	if i > length(split.itemindices)
+	if i > length(split.Igroup2items)
 		nothing
 	else
-		MulticollectionView(split.C, split.itemindices[i]), i+1
+		MulticollectionView(split.C, split.Igroup2items[i]), i+1
 	end
 end
 
@@ -478,7 +469,7 @@ Base.eltype(::Type{<:MulticollectionSplit{T1,T2,T3}}) where {T1,T2,T3} =
 function Base.getindex(split::MulticollectionSplit, i::Integer)
 	@boundscheck firstindex(split) <= i <= lastindex(split) ||
 			throw(BoundsError(split, i))
-	MulticollectionView(split.C, split.itemindices[i])
+	MulticollectionView(split.C, split.Igroup2items[i])
 end
 
 eachitem(C::AbstractMulticollection) =

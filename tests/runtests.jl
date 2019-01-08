@@ -9,6 +9,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 
 	include("graphs.jl")
 	include("geometry.jl")
+	include("pbc.jl")
 	include("models.jl")
 	include("guessing.jl")
 	include("selection.jl")

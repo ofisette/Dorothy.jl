@@ -7,7 +7,7 @@ using ..Dorothy.Utils
 
 export
 		AbstractGraph, Graph, FixedGraph, neighbors!, pairs, connected,
-		connected!, isisolated, pair!, unpair!, isolate!
+		connected!, follow, follow!, isisolated, pair!, unpair!, isolate!
 
 abstract type AbstractGraph <: AbstractVector{Vector{Int}} end
 
@@ -171,6 +171,15 @@ function connected!(dest::AbstractVector{<:Integer}, G::AbstractGraph,
 		end
 	end
 	dest
+end
+
+follow(G::AbstractGraph, (i, j)::Tuple{Integer,Integer}) = follow!([], (i, j))
+
+function follow!(dest::AbstractVector{<:Integer}, G::AbstractGraph,
+		(i, j)::Tuple{Integer,Integer})
+	skip = falses(length(G))
+	skip[i] = true
+	connected!(dest, G, j, skip)
 end
 
 function isisolated(G::AbstractGraph, I::AbstractArray{<:Integer})
@@ -448,102 +457,3 @@ function Base.insert!(G::Graph, i::Integer, src::AbstractGraph)
 end
 
 end # module
-
-#= Crusty old stuff from before this Graphs module
-
-struct PathAtBondDistIterator{T<:ParticleCollection}
-	model::T
-	start::Int
-	dist::Int
-
-	function PathAtBondDistIterator{T}(model::T, start::Integer,
-			dist::Integer) where {T<:ParticleCollection}
-		@boundscheck begin
-			checkbounds(model, start)
-			dist > 0 || error("expected strictly positive bond distance")
-		end
-		new(model, start, dist)
-	end
-end
-
-Base.iterate(iter::PathAtBondDistIterator) = iterate(iter, [[iter.start]])
-
-function Base.iterate(iter::PathAtBondDistIterator, stack::Vector{Vector{Int}})
-	tmp = Int[]
-	while length(stack) != iter.dist + 1 || isempty(stack[end])
-		while isempty(stack[end])
-			pop!(stack)
-			if isempty(stack)
-				return
-			else
-				pop!(stack[end])
-			end
-		end
-		newlevel = Int[]
-		for i in bondedpartners!(tmp, iter.model, stack[end][end])
-			visited = false
-			for level in stack
-				if i == level[end]
-					visited = true
-					break
-				end
-			end
-			if ! visited
-				push!(newlevel, i)
-			end
-		end
-		push!(stack, newlevel)
-	end
-	path = [level[end] for level in stack]
-	pop!(stack[end])
-	path, stack
-end
-
-Base.IteratorSize(::PathAtBondDistIterator) = Base.SizeUnknown()
-
-Base.eltype(::PathAtBondDistIterator) = Vector{Int}
-
-distbondedpaths(model::T, start::Integer, dist::Integer) where
-		{T<:ParticleCollection} = PathAtBondDistIterator{T}(model, start, dist)
-
-function bondedpaths(model::ParticleCollection, i::Integer, j::Integer,
-		maxdist::Integer = length(model) - 1)
-	@boundscheck begin
-		checkbounds(model, i)
-		checkbounds(model, j)
-		i != j || error("cannot find paths between a particle and itself")
-		maxdist > 0 || error("expected strictly positive maximum bond distance")
-		maxdist < length(model) || error("maximum bond distance must be" *
-				"smaller than number of particles")
-	end
-	paths = Vector{Int}[]
-	for dist = 1:maxdist
-		for path in distbondedpaths(model, i, dist)
-			if path[end] == j
-				push!(paths, path)
-			end
-		end
-	end
-	paths
-end
-
-function bondedpath(model::ParticleCollection, i::Integer, j::Integer,
-		maxdist::Integer = length(model) - 1)
-	@boundscheck begin
-		checkbounds(model, i)
-		checkbounds(model, j)
-		i != j || error("cannot find path between a particle and itself")
-		maxdist > 0 || error("expected strictly positive maximum bond distance")
-		maxdist < length(model) || error("maximum bond distance must be" *
-				"smaller than number of particles")
-	end
-	for dist = 1:maxdist
-		for path in distbondedpaths(model, i, dist)
-			if path[end] == j
-				return path
-			end
-		end
-	end
-	nothing
-end
-=#

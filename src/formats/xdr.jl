@@ -29,14 +29,14 @@ function size_of_xdr_int(size::T) where {T<:Integer}
 	num_of_bits
 end
 
-function size_of_xdr_ints!(bytes::Vector{T}, sizes::Vector{T}) where
-		{T<:Integer}
+function size_of_xdr_ints!(bytes::AbstractVector{T},
+		sizes::AbstractVector{T}) where {T<:Integer}
 	local num_of_bytes::T, num_of_bits::T, tmp::T, bytecnt::T, num::T,
 			last_byte::T
 	num_of_bytes = 1
 	num_of_bits = 0
 	bytes[1] = 1
-	for size::Int in sizes
+	for size in sizes
 		tmp = 0
 		bytecnt = 1
 		while bytecnt <= num_of_bytes
@@ -62,7 +62,7 @@ function size_of_xdr_ints!(bytes::Vector{T}, sizes::Vector{T}) where
 	num_of_bits + num_of_bytes * 8
 end
 
-function decode_xdr_bits!(state::Vector{T}, buf::Vector{UInt8},
+function decode_xdr_bits!(state::AbstractVector{T}, buf::AbstractVector{UInt8},
 		num_of_bits::T) where {T<:Integer}
 	local mask::T, cnt::T, lastbits::T, lastbyte::T, num::T
 
@@ -94,9 +94,9 @@ function decode_xdr_bits!(state::Vector{T}, buf::Vector{UInt8},
 	num
 end
 
-function decode_xdr_ints!(nums::Vector{T}, bytes::Vector{T},
-		state::Vector{T}, buf::Vector{UInt8}, num_of_ints::T, num_of_bits::T,
-		sizes::Vector{T}, pos::T) where {T<:Integer}
+function decode_xdr_ints!(nums::AbstractVector{T}, bytes::AbstractVector{T},
+		state::AbstractVector{T}, buf::AbstractVector{UInt8}, num_of_ints::T,
+		num_of_bits::T, sizes::AbstractVector{T}, pos::T) where {T<:Integer}
 	@inbounds begin
 		local num_of_bytes::T, i::T, j::T, p::T
 		bytes[2] = 0

@@ -2,6 +2,40 @@
 
 const SelectionCache = Dict{Symbol,Any}
 
+function emptyframe!(cache::SelectionCache)
+	for key in [:pbcpos, :posgrids, :SS]
+		delete!(cache, key)
+	end
+end
+
+function getpbcpos!(cache::SelectionCache, R::AbstractVector{Vector3D},
+		cell::Union{TriclinicPBC,Nothing})
+	get!(cache, :pbcpos) do
+		Rw, Rkw = get!(cache, :pbcposbuffer) do
+			similar(R), similar(R)
+		end
+		pbcpos!(Rw, Rkw, R, cell)
+	end
+end
+
+function getposgrid!(cache::SelectionCache, Rw::AbstractVector{Vector3D},
+		Rkw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
+		d::Real)
+	grids = get!(cache, :posgrids) do
+		Dict{Int,PositionGrid}()
+	end
+	ceild = ceil(Int, d)
+	get!(grids, ceild) do
+		buffers = get!(cache, :posgridbuffers) do
+			Dict{Int,PositionGrid}()
+		end
+		buffer = get!(buffers, ceild) do
+			posgrid(cell)
+		end
+		posgrid!(buffer, Rw, Rkw, cell, ceild)
+	end
+end
+
 abstract type SelectBy end
 
 struct SelectByChain <: SelectBy end
@@ -91,13 +125,13 @@ selection_index_f(I::AbstractVector{<:Integer}) = (J -> J[I])
 
 selection_index_f(i0::Integer, I::Integer...) = selection_index_f([i0, I...])
 
-selection_position_getter(R::AbstractMatrix{<:Real}) = (model, cache) -> R
+selection_pos_f(f) = checkcallable(f)
 
-selection_position_getter(R::AbstractVector{<:Real}) =
-		(model, cache) -> reshape(R, 3,1)
+selection_pos_f(R::AbstractVector{<:Real}) = selection_pos_f(Vector3D(R))
 
-selection_position_getter(s::Selector) =
-		(model, cache) -> view(model, s, cache).R
+selection_pos_f(R::Vector3D) = selection_pos_f([R])
+
+selection_pos_f(R::AbstractVector{Vector3D}) = (model, cache) -> R
 
 selection_int_predicate(f) = checkcallable(f)
 
@@ -122,10 +156,12 @@ selection_real_predicate(f) = checkcallable(f)
 
 selection_real_predicate(r::Real) = (s -> isapprox(s, r))
 
-selection_vector_real_predicate(f) = checkcallable(f)
+selection_vector3d_predicate(f) = checkcallable(f)
 
-selection_vector_real_predicate(R::AbstractVector{<:Real}) =
-		(S -> isapprox(R, S))
+selection_vector3d_predicate(V::AbstractVector{<:Real}) =
+		selection_vector3d_predicate(Vector3D(V))
+
+selection_vector3d_predicate(V::Vector3D) = (W -> isapprox(W, V))
 
 struct NotSelector{T<:Selector} <: Selector
 	s::T
@@ -269,17 +305,17 @@ function select!(s::IndexSelector, results::BitVector,
 		cache::SelectionCache)
 	work = falses(length(model))
 	split = s.by(model, cache)
-	I = s.f(eachindex(split.itemindices))
-	selectindices!(work, I, split.itemindices)
+	I = s.f(eachindex(split.Igroup2items))
+	selectindices!(work, I, split.Igroup2items)
 	for i in subset
 		results[i] = work[i]
 	end
 end
 
 function selectindices!(results::BitVector, I::AbstractVector{<:Integer},
-		itemindices::AbstractVector{<:AbstractVector{<:Integer}})
+		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}})
 	for i in I
-		for j in itemindices[i]
+		for j in Igroup2ps[i]
 			results[j] = true
 		end
 	end
@@ -304,19 +340,19 @@ function select!(s::ExpandSelector, results::BitVector,
 	select!(s.s, results, model, subset, cache)
 	work = falses(length(model))
 	split = s.by(model, cache)
-	selectpartial!(work, results, split.itemindices, split.groupindices, subset)
+	selectpartial!(work, results, split.Igroup2items, split.Iitem2group, subset)
 	for i in subset
 		results[i] = work[i]
 	end
 end
 
 function selectpartial!(results::BitVector, selected::BitVector,
-		itemindices::AbstractVector{<:AbstractVector{<:Integer}},
-		groupindices::AbstractVector{<:Integer}, subset::AbstractVector{<:Integer})
+		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}},
+		Ip2group::AbstractVector{<:Integer}, subset::AbstractVector{<:Integer})
 	for i in subset
 		if selected[i]
 			if ! results[i]
-				for j in itemindices[groupindices[i]]
+				for j in Igroup2ps[Ip2group[i]]
 					results[j] = true
 				end
 			end
@@ -343,20 +379,20 @@ function select!(s::RestrictSelector, results::BitVector,
 	select!(s.s, results, model, subset, cache)
 	work = trues(length(model))
 	split = s.by(model, cache)
-	selectfull!(work, results, split.itemindices, split.groupindices, subset)
+	selectfull!(work, results, split.Igroup2items, split.Iitem2group, subset)
 	for i in subset
 		results[i] = work[i]
 	end
 end
 
 function selectfull!(results::BitVector, selected::BitVector,
-		itemindices::AbstractVector{<:AbstractVector{<:Integer}},
-		groupindices::AbstractVector{<:Integer},
+		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}},
+		Ip2group::AbstractVector{<:Integer},
 		subset::AbstractVector{<:Integer})
 	for i in subset
 		if ! selected[i]
 			if results[i]
-				for j in itemindices[groupindices[i]]
+				for j in Igroup2ps[Ip2group[i]]
 					results[j] = false
 				end
 			end
@@ -364,73 +400,59 @@ function selectfull!(results::BitVector, selected::BitVector,
 	end
 end
 
-struct WithinSelector{T} <: Selector
+struct WithinPositionSelector{T} <: Selector
 	d::Float64
-	getter!::T
+	of::T
 	by::SelectBy
-	pbc::Bool
 
-	function WithinSelector{T}(d::Real, getter!::T, by::SelectBy,
-			pbc::Bool) where {T}
+	function WithinPositionSelector{T}(d::Real, of::T, by::SelectBy) where {T}
 		d > 0.0 || error("expected strictly positive distance")
-		new(d, getter!, by, pbc)
+		new(d, of, by)
 	end
 end
 
-WithinSelector(d::Real, getter!::T, by::SelectBy, pbc::Bool) where {T} =
-		WithinSelector{T}(d, getter!, by, pbc)
+WithinPositionSelector(d::Real, of::T, by::SelectBy) where {T} =
+		WithinPositionSelector{T}(d, of, by)
 
-Within(d::Real, x; by::SelectBy = SelectByParticle(), pbc::Bool = true) =
-		WithinSelector(d, selection_position_getter(x), by, pbc)
+WithinSelector(d::Real, of, by::SelectBy) =
+		WithinPositionSelector(d, selection_pos_f(of), by)
 
-function select!(s::WithinSelector, results::BitVector,
+Expand(s::WithinPositionSelector; by::SelectBy) =
+		WithinPositionSelector(s.d, s.of, by)
+
+function select!(s::WithinPositionSelector, results::BitVector,
 		model::ParticleCollection, subset::AbstractVector{<:Integer},
 		cache::SelectionCache)
 	work = trues(length(model))
 	for i in subset
 		work[i] = false
 	end
-	S = s.getter!(model, cache)
 	split = s.by(model, cache)
 	cell = get(model.header, :cell, nothing)
-	if s.pbc && cell != nothing
-		Rk = get(model, :Rk) do
-			get!(cache, :Rk) do
-				wrappos!(inv(cell) * model.R)
-			end
-		end
-		selectwithin!(work, split.itemindices, split.groupindices, Rk, S, s.d,
-				cell, cache)
-	else
-		selectwithin!(work, split.itemindices, split.groupindices, model.R, S,
-				s.d, cache)
-	end
+	Rw, Rkw = getpbcpos!(cache, model.R, cell)
+	pg = getposgrid!(cache, Rw, Rkw, cell, s.d)
+	Rref = s.of(model, cache)
+	selectwithinpos!(work, split.Igroup2items, split.Iitem2group, Rw, Rkw, cell,
+			Rref, s.d, pg)
 	for i in subset
 		results[i] = work[i]
 	end
 end
 
-function selectwithin!(results::BitVector,
-		itemindices::AbstractVector{<:AbstractVector{<:Integer}},
-		groupindices::AbstractVector{<:Integer}, R::AbstractMatrix{<:Real},
-		S::AbstractMatrix{<:Real}, d::Real, cache::SelectionCache)
-	spatial::Dict{Symbol,Any} = get!(cache, :spatial, Dict{Symbol,Any}())
-	grids::Dict{Int,OrthoGrid3{Int}} =
-			get!(spatial, :grids, Dict{Int,OrthoGrid3{Int}}())
-	dgrid = ceil(Int, d)
-	g3::OrthoGrid3{Int} = get!(grids, dgrid) do
-		append!(OrthoGrid3{Int}(extent(R), dgrid), R, 1:ncols(R))
-	end
+function selectwithinpos!(results::BitVector,
+		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}},
+		Ip2group::AbstractVector{<:Integer}, Rw::AbstractVector{Vector3D},
+		Rkw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
+		Rref::AbstractVector{Vector3D}, d::Real, pg::PositionGrid)
 	d2 = d^2
-	J = Int[]
-	for i = 1:ncols(S)
-		B = @view S[:,i]
-		for j in findnear!(J, g3, B)
-			if ! results[j]
-				A = @view R[:,j]
-				if sqdist(A, B) <= d2
-					for k in itemindices[groupindices[j]]
-						results[k] = true
+	I = Int[]
+	for Rrefi in Rref
+		Rrefiw, Rrefikw = pbcpos(Rrefi, cell)
+		for i in findnear!(I, pg, Rrefi)
+			if ! results[i]
+				if sqmindist(Rw[i], Rkw[i], Rrefiw, Rrefikw, cell) <= d2
+					for j in Igroup2ps[Ip2group[i]]
+						results[j] = true
 					end
 				end
 			end
@@ -438,34 +460,60 @@ function selectwithin!(results::BitVector,
 	end
 end
 
-function selectwithin!(results::BitVector,
-		itemindices::AbstractVector{<:AbstractVector{<:Integer}},
-		groupindices::AbstractVector{<:Integer}, Rk::AbstractMatrix{<:Real},
-		S::AbstractMatrix{<:Real}, d::Real, cell::AbstractMatrix{<:Real},
+struct WithinSelectionSelector{T<:Selector} <: Selector
+	d::Float64
+	of::T
+	by::SelectBy
+
+	function WithinSelectionSelector{T}(d::Real, of::T, by::SelectBy) where
+			{T<:Selector}
+		d > 0.0 || error("expected strictly positive distance")
+		new(d, of, by)
+	end
+end
+
+WithinSelectionSelector(d::Real, of::T, by::SelectBy) where {T<:Selector} =
+		WithinSelectionSelector{T}(d, of, by)
+
+WithinSelector(d::Real, of::Selector, by::SelectBy) =
+		WithinSelectionSelector(d, of, by)
+
+Within(d::Real; of) = WithinSelector(d, of, SelectByParticle())
+
+Expand(s::WithinSelectionSelector; by::SelectBy) =
+		WithinSelectionSelector(s.d, s.of, by)
+
+function select!(s::WithinSelectionSelector, results::BitVector,
+		model::ParticleCollection, subset::AbstractVector{<:Integer},
 		cache::SelectionCache)
-	spatial::Dict{Symbol,Any} = get!(cache, :spatial, Dict{Symbol,Any}())
-	kgrids::Dict{Int,KspaceGrid3{Int}} =
-			get!(spatial, :kgrids, Dict{Int,KspaceGrid3{Int}}())
-	dgrid = ceil(Int, d)
-	g3::KspaceGrid3{Int} = get!(kgrids, dgrid) do
-		append!(KspaceGrid3{Int}(cell, dgrid), Rk, 1:ncols(Rk))
+	work = trues(length(model))
+	for i in subset
+		work[i] = false
 	end
+	split = s.by(model, cache)
+	cell = get(model.header, :cell, nothing)
+	Rw, Rkw = getpbcpos!(cache, model.R, cell)
+	pg = getposgrid!(cache, Rw, Rkw, cell, s.d)
+	Iref = findall(map(s.of, model, cache))
+	selectwithinsel!(work, split.Igroup2items, split.Iitem2group, Rw, Rkw, cell,
+			Iref, s.d, pg)
+	for i in subset
+		results[i] = work[i]
+	end
+end
+
+function selectwithinsel!(results::BitVector,
+		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}},
+		Ip2group::AbstractVector{<:Integer}, Rw::AbstractVector{Vector3D},
+		Rkw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
+		Iref::AbstractVector{<:Integer}, d::Real, pg::PositionGrid)
 	d2 = d^2
-	Bk = similar(Rk, 3)
-	Tk = similar(Rk, 3)
-	T = similar(Rk, 3)
 	J = Int[]
-	for i = 1:ncols(S)
-		B = @view S[:,i]
-		mul!(Bk, cell.inv, B)
-		wrappos!(Bk)
-		for j in findnear!(J, g3, Bk)
+	for i in Iref
+		for j in findnear!(J, pg, i)
 			if ! results[j]
-				Ak = @view Rk[:,j]
-				mintrans!(Tk, Ak, Bk)
-				mul!(T, cell, Tk)
-				if sqnorm(T) <= d2
-					for k in itemindices[groupindices[j]]
+				if sqmindist(Rw[j], Rkw[j], Rw[i], Rkw[i], cell) <= d2
+					for k in Igroup2ps[Ip2group[j]]
 						results[k] = true
 					end
 				end
@@ -474,21 +522,21 @@ function selectwithin!(results::BitVector,
 	end
 end
 
-struct VectorPredicateSelector{T1,T2} <: Selector
-	getter!::T1
+struct PredicateSelector{T1,T2} <: Selector
+	getter::T1
 	predicate::T2
 
-	VectorPredicateSelector{T1,T2}(getter!::T1, predicate::T2) where {T1,T2} =
-			new(getter!, predicate)
+	PredicateSelector{T1,T2}(getter::T1, predicate::T2) where {T1,T2} =
+			new(getter, predicate)
 end
 
-VectorPredicateSelector(getter!::T1, predicate::T2) where{T1,T2} =
-		VectorPredicateSelector{T1,T2}(getter!, predicate)
+PredicateSelector(getter::T1, predicate::T2) where {T1,T2} =
+		PredicateSelector{T1,T2}(getter, predicate)
 
-select!(s::VectorPredicateSelector, results::BitVector,
+select!(s::PredicateSelector, results::BitVector,
 		model::ParticleCollection, subset::AbstractVector{<:Integer},
 		cache::SelectionCache) = selectpredicated!(s.predicate, results,
-		s.getter!(model, cache), subset)
+		s.getter(model, cache), subset)
 
 function selectpredicated!(f, results::BitVector, V::AbstractVector,
 		subset::AbstractVector{<:Integer})
@@ -497,43 +545,20 @@ function selectpredicated!(f, results::BitVector, V::AbstractVector,
 	end
 end
 
-struct MatrixPredicateSelector{T1,T2} <: Selector
-	getter!::T1
-	predicate::T2
-
-	MatrixPredicateSelector{T1,T2}(getter!::T1, predicate::T2) where {T1,T2} =
-			new(getter!, predicate)
-end
-
-MatrixPredicateSelector(getter!::T1, predicate::T2) where {T1,T2} =
-		MatrixPredicateSelector{T1,T2}(getter!, predicate)
-
-select!(s::MatrixPredicateSelector, results::BitVector,
-		subset::AbstractVector{<:Integer}, model::ParticleCollection,
-		cache::SelectionCache) = selectpredicated!(s.predicate, results,
-		s.getter!(model, cache), subset)
-
-function selectpredicated!(f, results::BitVector, M::AbstractMatrix,
-		subset::AbstractVector{<:Integer})
-	for i in subset
-		results[i] = f(view(M, :, i))
-	end
-end
-
-Id(X...) = VectorPredicateSelector((model, cache) -> model.ids,
+Id(X...) = PredicateSelector((model, cache) -> model.ids,
 		selection_int_predicate(X...))
 
-Name(X...) = VectorPredicateSelector((model, cache) -> model.names,
+Name(X...) = PredicateSelector((model, cache) -> model.names,
 		selection_string_predicate(X...))
 
-ResId(X...) = VectorPredicateSelector((model, cache) -> model.resids,
+ResId(X...) = PredicateSelector((model, cache) -> model.resids,
 		selection_int_predicate(X...))
 
-ResName(X...) = VectorPredicateSelector((model, cache) -> model.resnames,
+ResName(X...) = PredicateSelector((model, cache) -> model.resnames,
 		selection_string_predicate(X...))
 
-ChainId(X...) = VectorPredicateSelector((model, cache) ->
-		get(model, :chainids, ScalarArray("", length(model))),
+ChainId(X...) = PredicateSelector((model, cache) ->
+		get(model, :chainids, Repeat("", length(model))),
 		selection_string_predicate(X...))
 
 function Element(X...)
@@ -544,17 +569,17 @@ function Element(X...)
 			end
 		end
 	end
-	VectorPredicateSelector(f, selection_string_predicate(X...))
+	PredicateSelector(f, selection_string_predicate(X...))
 end
 
-R(x) = MatrixPredicateSelector((model, cache) -> model.R,
-		selection_vector_real_predicate(x))
+R(x) = PredicateSelector((model, cache) -> model.R,
+		selection_vector3d_predicate(x))
 
-V(x) = MatrixPredicateSelector((model, cache) -> model.V,
-		selection_vector_real_predicate(x))
+V(x) = PredicateSelector((model, cache) -> model.V,
+		selection_vector3d_predicate(x))
 
-F(x) = MatrixPredicateSelector((model, cache) -> model.F,
-		selection_vector_real_predicate(x))
+F(x) = PredicateSelector((model, cache) -> model.F,
+		selection_vector3d_predicate(x))
 
 function Mass(x)
 	f = function (model, cache)
@@ -567,16 +592,16 @@ function Mass(x)
 			end
 		end
 	end
-	VectorPredicateSelector(f, selection_real_predicate(x))
+	PredicateSelector(f, selection_real_predicate(x))
 end
 
-Charge(x) = VectorPredicateSelector((model, cache) -> model.charges,
+Charge(x) = PredicateSelector((model, cache) -> model.charges,
 		selection_real_predicate(x))
 
-BFactor(x) = VectorPredicateSelector((model, cache) -> model.bfactors,
+BFactor(x) = PredicateSelector((model, cache) -> model.bfactors,
 		selection_real_predicate(x))
 
-Occupancy(x) = VectorPredicateSelector((model, cache) -> model.occupancies,
+Occupancy(x) = PredicateSelector((model, cache) -> model.occupancies,
 		selection_real_predicate(x))
 
 function SS(X...)
@@ -587,7 +612,7 @@ function SS(X...)
 			end
 		end
 	end
-	VectorPredicateSelector(f, selection_string_predicate(X...))
+	PredicateSelector(f, selection_string_predicate(X...))
 end
 
 const Hydrogen = CachedSelector(Name(ishydrogen), :hydrogens)

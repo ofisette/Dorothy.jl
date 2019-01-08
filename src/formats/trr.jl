@@ -4,7 +4,9 @@ module TRR
 
 using ..Dorothy
 using ..Dorothy.Geometry
+using ..Dorothy.PBC
 using ..Dorothy.XDR
+using ..Dorothy.Utils
 using Formats
 using FormatStreams
 
@@ -43,7 +45,7 @@ struct TRRMetadata
 	pressuresize::Int
 	topsize::Int
 	symsize::Int
-	possize::Int
+	Rsize::Int
 	Vsize::Int
 	Fsize::Int
 	nparticles::Int
@@ -52,12 +54,12 @@ struct TRRMetadata
 
 	function TRRMetadata(irsize::Integer, esize::Integer, cellsize::Integer,
 			virialsize::Integer, pressuresize::Integer, topsize::Integer,
-			symsize::Integer, possize::Integer, Vsize::Integer,
+			symsize::Integer, Rsize::Integer, Vsize::Integer,
 			Fsize::Integer, nparticles::Integer, precision::Type)
 		framesize = 76 + 2 * sizeof(precision) + cellsize + virialsize +
-				pressuresize + possize + Vsize + Fsize
+				pressuresize + Rsize + Vsize + Fsize
 		new(irsize, esize, cellsize, virialsize, pressuresize, topsize,
-				symsize, possize, Vsize, Fsize, nparticles, precision,
+				symsize, Rsize, Vsize, Fsize, nparticles, precision,
 				framesize)
 	end
 end
@@ -71,14 +73,14 @@ function read_trr_metadata(io::IO)
 	pressuresize = read_xdr_int(io)
 	topsize = read_xdr_int(io)
 	symsize = read_xdr_int(io)
-	possize = read_xdr_int(io)
+	Rsize = read_xdr_int(io)
 	Vsize = read_xdr_int(io)
 	Fsize = read_xdr_int(io)
 	nparticles = read_xdr_int(io)
 	precision = guess_trr_precision([cellsize, virialsize, pressuresize],
-			[possize, Vsize, Fsize], nparticles)
+			[Rsize, Vsize, Fsize], nparticles)
 	TRRMetadata(irsize, esize, cellsize, virialsize, pressuresize,
-			topsize, symsize, possize, Vsize, Fsize, nparticles,
+			topsize, symsize, Rsize, Vsize, Fsize, nparticles,
 			precision)
 end
 
@@ -100,7 +102,7 @@ function write_trr_metadata(io::IO, meta::TRRMetadata)
 	write_xdr_int(io, meta.topsize)
 	write_xdr_int(io, meta.symsize)
 	write_xdr_int(io, meta.pressuresize)
-	write_xdr_int(io, meta.possize)
+	write_xdr_int(io, meta.Rsize)
 	write_xdr_int(io, meta.Vsize)
 	write_xdr_int(io, meta.Fsize)
 	write_xdr_int(io, meta.nparticles)
@@ -126,10 +128,10 @@ function trr_metadata_from_vals(nparticles::Integer, precision::Type = Float32,
 	cellsize = (:cell in properties ? 3*3 * sizeof(precision) : 0)
 	virialsize = (:virial in properties ? 3*3 * sizeof(precision) : 0)
 	pressuresize = (:pressure in properties ? 3*3 * sizeof(precision) : 0)
-	possize = (:R in properties ? 3*nparticles * sizeof(precision) : 0)
+	Rsize = (:R in properties ? 3*nparticles * sizeof(precision) : 0)
 	Vsize = (:V in properties ? 3*nparticles * sizeof(precision) : 0)
 	Fsize = (:F in properties ? 3*nparticles * sizeof(precision) : 0)
-	TRRMetadata(0, 0, cellsize, virialsize, pressuresize, 0, 0, possize,
+	TRRMetadata(0, 0, cellsize, virialsize, pressuresize, 0, 0, Rsize,
 			Vsize, Fsize, nparticles, precision)
 end
 
@@ -173,7 +175,7 @@ struct TRRBuffer{T<:Real}
 		n = meta.pressuresize > 0 ? 3 : 0
 		pressure = Matrix{T}(undef, 3,n)
 		pressuref = Matrix{Float64}(undef, 3,n)
-		n = meta.possize > 0 ? meta.nparticles : 0
+		n = meta.Rsize > 0 ? meta.nparticles : 0
 		R = Matrix{T}(undef, 3,n)
 		n = meta.Vsize > 0 ? meta.nparticles : 0
 		V = Matrix{T}(undef, 3,n)
@@ -275,11 +277,11 @@ function readtrr!(io::IO, model::MolecularModel,
 	if meta.cellsize != 0
 		read!(io, buffer.cell)
 		decode_trr_array!(buffer.cellf, buffer.cell, 10.0)
-		model.header.cell = buffer.cellf
+		model.header.cell = pbccell(buffer.cellf)
 	end
 	if meta.virialsize != 0
 		read!(io, buffer.virial)
-		decode_trr_array!(buffer.virialf, buffer.virial)
+		decode_trr_array!(buffer.virialf, buffer.virial, 1.0)
 		model.header.virial = buffer.virialf
 	end
 	if meta.pressuresize != 0
@@ -287,7 +289,7 @@ function readtrr!(io::IO, model::MolecularModel,
 		decode_trr_array!(buffer.pressuref, buffer.pressure, 1.0/1000.0)
 		model.header.pressure = buffer.pressuref
 	end
-	if meta.possize != 0
+	if meta.Rsize != 0
 		read!(io, buffer.R)
 		decode_trr_array!(get!(model, :R, undef), buffer.R, 10.0)
 	end
@@ -302,10 +304,22 @@ function readtrr!(io::IO, model::MolecularModel,
 	model
 end
 
-function decode_trr_array!(dest::AbstractArray{<:Real},
-		src::AbstractArray{<:Real}, factor::Real = 1.0)
+function decode_trr_array!(dest::Array{Float64}, src::Array{<:Real},
+		factor::Real)
 	@inbounds @fastmath @simd for i in eachindex(dest)
 		dest[i] = ntoh(src[i]) * factor
+	end
+	dest
+end
+
+function decode_trr_array!(dest::FixedArray{Vector{Vector3D}},
+		src::Array{<:Real}, factor::Real)
+	@inbounds @fastmath @simd for i in eachindex(dest)
+		d = (i-1) * 3
+		x = ntoh(src[d+1]) * factor
+		y = ntoh(src[d+2]) * factor
+		z = ntoh(src[d+3]) * factor
+		dest[i] = Vector3D(x,y,z)
 	end
 	dest
 end
@@ -319,18 +333,21 @@ function writetrr(io::IO, model::ParticleCollection,
 	write_xdr_num(io, model.header.time, meta.precision)
 	write_xdr_num(io, model.header.lambda, meta.precision)
 	if meta.cellsize != 0
-		encode_trr_array!(buffer.cell, model.header.cell, 10.0)
+		buffer.cellf .= pbcmatrix(model.header.cell)
+		encode_trr_array!(buffer.cell, buffer.cellf, 10.0)
 		write(io, buffer.cell)
 	end
 	if meta.virialsize != 0
-		encode_trr_array!(buffer.virial, model.header.virial)
+		buffer.virialf .= model.header.virial
+		encode_trr_array!(buffer.virial, buffer.virialf, 1.0)
 		write(io, buffer.virial)
 	end
 	if meta.pressuresize != 0
-		encode_trr_array!(buffer.pressure, model.header.pressure, 1.0/1000.0)
+		buffer.pressuref .= model.header.pressure
+		encode_trr_array!(buffer.pressure, buffer.pressuref, 1.0/1000.0)
 		write(io, buffer.pressure)
 	end
-	if meta.possize != 0
+	if meta.Rsize != 0
 		encode_trr_array!(buffer.R, model.R, 10.0)
 		write(io, buffer.R)
 	end
@@ -344,10 +361,23 @@ function writetrr(io::IO, model::ParticleCollection,
 	end
 end
 
-function encode_trr_array!(dest::AbstractArray{T},
-		src::AbstractArray{<:Real}, factor::Real = 1.0) where {T<:Real}
-	@inbounds @fastmath @simd for i in eachindex(dest)
+function encode_trr_array!(dest::Array{T}, src::AbstractArray{Float64},
+		factor::Real) where {T<:Real}
+	@inbounds @fastmath @simd for i in eachindex(src)
 		dest[i] = hton(T(src[i] / factor))
+	end
+	dest
+end
+
+# BUG: The bug seems to be here.
+function encode_trr_array!(dest::Array{T}, src::AbstractVector{Vector3D},
+		factor::Real) where {T<:Real}
+	@inbounds @fastmath @simd for i in eachindex(src)
+		x, y, z = hton.(T.(src[i] ./ factor))
+		d = (i-1) * 3
+		dest[d+1] = x
+		dest[d+2] = y
+		dest[d+3] = z
 	end
 	dest
 end

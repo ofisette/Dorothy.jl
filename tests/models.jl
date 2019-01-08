@@ -3,6 +3,7 @@ using LinearAlgebra
 using Dorothy
 using Dorothy.Graphs
 using Dorothy.Geometry
+using Dorothy.PBC
 using Formats
 using FormatStreams
 
@@ -34,12 +35,11 @@ datapath = joinpath(@__DIR__, "..", "data")
 		@test length(keys(h1)) == 2
 		h1.lambda = 0.6
 		@test length(keys(h1)) == 3
-		h1.cell = pbccell(I)
-		h1.cell = pbccell(25.0)
-		@test sum(h1.cell, dims=1) ≈ [25.0 25.0 25.0]
+		h1.cell = OrthorhombicCell(25.0)
+		@test dims(h1.cell) ≈ [25.0, 25.0, 25.0]
 		@test_throws Exception h1.cell = zeros(3,4)
-		h1.virial = pbccell(I)
-		h1.pressure = pbccell(I)
+		h1.virial = zeros(3,3)
+		h1.pressure = ones(3,3)
 		show(IOBuffer(), h1)
 		show(IOBuffer(), MIME"text/plain"(), h1)
 		@test h1.lambda == h1[:lambda]
@@ -84,15 +84,12 @@ datapath = joinpath(@__DIR__, "..", "data")
 		delete!(m2, :charges)
 		delete!(m2, :occupancies)
 		@test isempty(keys(m2))
-		@test_throws Exception m2.R = fill(0.0, (10,3))
-		@test_throws Exception m2.R = fill(nothing, (3,10))
-		m2.R = fill(0.0, (3,10))
-		@test_throws Exception m2.V = fill(0.0, (10,3))
-		@test_throws Exception m2.V = fill(nothing, (3,10))
-		m2.V = fill(0.0, (3,10))
-		@test_throws Exception m2.F = fill(0.0, (10,3))
-		@test_throws Exception m2.F = fill(nothing, (3,10))
-		m2.F = fill(0.0, (3,10))
+		m2.R = fill([0,0,0], 10)
+		@test_throws Exception m2.R = fill(nothing, 10)
+		m2.V = fill([0,0,0], 10)
+		@test_throws Exception m2.V = fill(nothing, 10)
+		m2.F = fill([0,0,0], 10)
+		@test_throws Exception m2.F = fill(nothing, 10)
 		@test_throws Exception m2.ids = fill(0, (10,3))
 		@test_throws Exception m2.ids = fill(nothing, 10)
 		m2.ids = 1:10
@@ -123,7 +120,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 		for (i, p) in enumerate(m1)
 			@test p.i == i
 		end
-		m1.R = fill(0.0, (3,10))
+		m1.R = fill([0,0,0], 10)
 		m1.ids = 1:10
 		@test m1[1].R == [0.0, 0.0, 0.0]
 		@test m1[2].id == 2
@@ -146,12 +143,12 @@ datapath = joinpath(@__DIR__, "..", "data")
 		v1 = view(m1, 1:5)
 		@test parent(v1) == m1
 		@test parentindices(v1) == 1:5
-		m1.R = fill(0.0, (3,10))
+		m1.R = fill([0,0,0], 10)
 		m1.ids = 1:10
 		@test v1.ids == 1:5
-		@test v1.R == fill(0.0, (3,5))
-		fill!(v1.R, 1.0)
-		@test v1.R[:,1:5] == fill(1.0, (3,5))
+		@test v1.R == fill([0,0,0], 5)
+		fill!(v1.R, [1,1,1])
+		@test v1.R[1:5] == fill([1,1,1], 5)
 		@test length(keys(v1)) == 2
 		@test_throws Exception v1.resids = 1:5
 		@test haskey(v1, :ids) == true
@@ -252,16 +249,16 @@ datapath = joinpath(@__DIR__, "..", "data")
 			@test parentindices(h.chains[2]) == 4:5
 			@test parentindices(h.chains[3]) == 6:9
 			@test parentindices(h.chains[4]) == 10:10
-			@test chainindices(m1, 1) == 1:3
-			@test chainindices(m1, 2) == 1:3
-			@test chainindices(m1, 3) == 1:3
-			@test chainindices(m1, 4) == 4:5
-			@test chainindices(m1, 5) == 4:5
-			@test chainindices(m1, 6) == 6:9
-			@test chainindices(m1, 7) == 6:9
-			@test chainindices(m1, 8) == 6:9
-			@test chainindices(m1, 9) == 6:9
-			@test chainindices(m1, 10) == 10:10
+			@test chainat(m1, 1) == view(m1, 1:3)
+			@test chainat(m1, 2) == view(m1, 1:3)
+			@test chainat(m1, 3) == view(m1, 1:3)
+			@test chainat(m1, 4) == view(m1, 4:5)
+			@test chainat(m1, 5) == view(m1, 4:5)
+			@test chainat(m1, 6) == view(m1, 6:9)
+			@test chainat(m1, 7) == view(m1, 6:9)
+			@test chainat(m1, 8) == view(m1, 6:9)
+			@test chainat(m1, 9) == view(m1, 6:9)
+			@test chainat(m1, 10) == view(m1, 10:10)
 		end
 
 		@testset "Residue" begin
@@ -278,16 +275,16 @@ datapath = joinpath(@__DIR__, "..", "data")
 			@test parentindices(h.residues[4]) == 11:12
 			@test parentindices(h.residues[5]) == 13:16
 			@test parentindices(h.residues[6]) == 17:20
-			@test residueindices(m1, 1) == 1:4
-			@test residueindices(m1, 2) == 1:4
-			@test residueindices(m1, 3) == 1:4
-			@test residueindices(m1, 4) == 1:4
-			@test residueindices(m1, 5) == 5:8
-			@test residueindices(m1, 16) == 13:16
-			@test residueindices(m1, 17) == 17:20
-			@test residueindices(m1, 18) == 17:20
-			@test residueindices(m1, 19) == 17:20
-			@test residueindices(m1, 20) == 17:20
+			@test residueat(m1, 1) == view(m1, 1:4)
+			@test residueat(m1, 2) == view(m1, 1:4)
+			@test residueat(m1, 3) == view(m1, 1:4)
+			@test residueat(m1, 4) == view(m1, 1:4)
+			@test residueat(m1, 5) == view(m1, 5:8)
+			@test residueat(m1, 16) == view(m1, 13:16)
+			@test residueat(m1, 17) == view(m1, 17:20)
+			@test residueat(m1, 18) == view(m1, 17:20)
+			@test residueat(m1, 19) == view(m1, 17:20)
+			@test residueat(m1, 20) == view(m1, 17:20)
 		end
 
 		@testset "Fragment" begin
@@ -300,16 +297,16 @@ datapath = joinpath(@__DIR__, "..", "data")
 			@test parentindices(frags[2]) == 4:8
 			@test parentindices(frags[3]) == 9:9
 			@test parentindices(frags[4]) == 10:10
-			@test fragmentindices(m1, 1) == 1:3
-			@test fragmentindices(m1, 2) == 1:3
-			@test fragmentindices(m1, 3) == 1:3
-			@test fragmentindices(m1, 4) == 4:8
-			@test fragmentindices(m1, 5) == 4:8
-			@test fragmentindices(m1, 6) == 4:8
-			@test fragmentindices(m1, 7) == 4:8
-			@test fragmentindices(m1, 8) == 4:8
-			@test fragmentindices(m1, 9) == 9:9
-			@test fragmentindices(m1, 10) == 10:10
+			@test fragmentat(m1, 1) == view(m1, 1:3)
+			@test fragmentat(m1, 2) == view(m1, 1:3)
+			@test fragmentat(m1, 3) == view(m1, 1:3)
+			@test fragmentat(m1, 4) == view(m1, 4:8)
+			@test fragmentat(m1, 5) == view(m1, 4:8)
+			@test fragmentat(m1, 6) == view(m1, 4:8)
+			@test fragmentat(m1, 7) == view(m1, 4:8)
+			@test fragmentat(m1, 8) == view(m1, 4:8)
+			@test fragmentat(m1, 9) == view(m1, 9:9)
+			@test fragmentat(m1, 10) == view(m1, 10:10)
 		end
 
 	end

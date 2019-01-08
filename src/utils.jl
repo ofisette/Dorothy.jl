@@ -6,9 +6,8 @@ using .Iterators: drop
 
 export
 		τ, emptyindices, checkindexseries, isindexseries, deleteat_map,
-		splice_map, readuntil!, subsetsequal, substrip, wraptext, ncols,
-		eachcol, nrows, eachrow, VectorBasedMatrix, FixedArray, ReadonlyArray,
-		ScalarArray, SingleScalarVector, SelfVector, RangeVector
+		splice_map, subsetsequal, substrip, wraptext, ncols, nrows, FixedArray,
+		Repeat, SingleScalarVector, SelfVector, RangeVector
 
 const τ = 2π
 
@@ -64,19 +63,6 @@ function splice_map(n::Integer, range::UnitRange{<:Integer},
 	map
 end
 
-function readuntil!(src::IO, dest::AbstractArray{UInt8}, delim::UInt8)
-	empty!(dest)
-	while ! eof(src)
-		byte = read(src, UInt8)
-		if byte == delim
-			break
-		else
-			push!(dest, byte)
-		end
-	end
-	dest
-end
-
 function substrip(str::AbstractString, i0::Integer, i1::Integer)
 	while i0 <= i1 && str[i0] == ' '
 		i0 += 1
@@ -120,116 +106,7 @@ end
 
 ncols(M::AbstractMatrix) = size(M, 2)
 
-struct MatrixColumns{T1<:AbstractMatrix,T2} <: AbstractVector{T2}
-	M::T1
-
-	MatrixColumns{T1,T2}(M::T1) where {T1<:AbstractMatrix,T2} = new(M)
-end
-
-MatrixColumns(M::T) where {T<:AbstractMatrix} = MatrixColumns{T,eltype(T)}(M)
-
-Base.size(cols::MatrixColumns) = ncols(cols.M)
-
-Base.getindex(cols::MatrixColumns, i::Int) = cols.M[:,i]
-
-Base.setindex!(cols::MatrixColumns, v, i::Int) = cols.M[:,i] = v
-
-Base.IndexStyle(::Type{<:MatrixColumns}) = IndexLinear()
-
-eachcol(M::AbstractMatrix) = MatrixColumns(M)
-
 nrows(M::AbstractMatrix) = size(M, 1)
-
-struct MatrixRows{T1<:AbstractMatrix,T2} <: AbstractVector{T2}
-	M::T1
-
-	MatrixRows{T1,T2}(M::T1) where {T1<:AbstractMatrix,T2} = new(M)
-end
-
-MatrixRows(M::T) where {T<:AbstractMatrix} = MatrixRows{T,eltype(T)}(M)
-
-Base.size(rows::MatrixRows) = nrows(rows.M)
-
-Base.getindex(rows::MatrixRows, i::Int) = rows.M[i,:]
-
-Base.setindex!(rows::MatrixRows, v, i::Int) = rows.M[i,:] = v
-
-Base.IndexStyle(::Type{<:MatrixRows}) = IndexLinear()
-
-eachrow(M::AbstractMatrix) = MatrixRows(M)
-
-struct VectorBasedMatrix{T} <: AbstractMatrix{T}
-	V::Vector{T}
-	nrows::Int
-
-	function VectorBasedMatrix{T}(V::Vector{T}, nrows::Integer) where {T}
-		@boundscheck length(V) % nrows == 0 ||
-				error("V: length must be a multiple of nrows")
-		new(V, nrows)
-	end
-end
-
-VectorBasedMatrix(V::Vector{T}, nrows::Integer) where {T} =
-		VectorBasedMatrix{T}(V, nrows)
-
-Base.size(M::VectorBasedMatrix) = (M.nrows, length(M.V) ÷ M.nrows)
-
-function Base.getindex(M::VectorBasedMatrix, i::Int)
-	@boundscheck checkbounds(M, i)
-	@inbounds M.V[i]
-end
-
-function Base.setindex!(M::VectorBasedMatrix, v, i::Int)
-	@boundscheck checkbounds(M, i)
-	@inbounds M.V[i] = v
-end
-
-Base.IndexStyle(::Type{<:VectorBasedMatrix}) = IndexLinear()
-
-function Base.empty!(M::VectorBasedMatrix)
-	empty!(M.V)
-	M
-end
-
-function colstoindices(cols::AbstractVector{<:Integer}, nrows::Integer)
-	n = length(cols) * nrows
-	I = similar(cols, length(cols) * nrows)
-	i = 1
-	for col in cols
-		offset = (col - 1) * nrows
-		for row in 1:nrows
-			I[i] = offset + row
-			i += 1
-		end
-	end
-	I
-end
-
-function colstoindices(cols::UnitRange{<:Integer}, nrows::Integer)
-	i = (first(cols) - 1) * nrows + 1
-	j = last(cols) * nrows
-	i:j
-end
-
-function Base.deleteat!(M::VectorBasedMatrix, I::AbstractVector{<:Integer})
-	@boundscheck checkbounds(M, I)
-	@inbounds deleteat!(M.V, colstoindices(I))
-	M
-end
-
-function Base.splice!(M::VectorBasedMatrix, I::UnitRange{<:Integer},
-		replacement)
-	@boundscheck checkbounds(M, I)
-	@inbounds splice!(M.V, colstoindices(I),
-			view(replacement, length(replacement)))
-end
-
-function Base.resize!(M::VectorBasedMatrix, n::Integer)
-	resize!(M.V, n * M.nrows)
-	M
-end
-
-Base.sizehint!(M::VectorBasedMatrix, n::Integer) = sizehint!(M.V, n * M.nrows)
 
 struct FixedArray{T1,T2,N} <: AbstractArray{T2,N}
 	A::T1
@@ -253,43 +130,25 @@ end
 
 Base.IndexStyle(::Type{<:FixedArray}) = IndexLinear()
 
-struct ReadonlyArray{T1,T2,N} <: AbstractArray{T2,N}
-	A::T1
-
-	ReadonlyArray{T1,T2,N}(A::T1) where {T2,N,T1<:AbstractArray{T2,N}} = new(A)
-end
-
-ReadonlyArray(A::AbstractArray{T}) where {T} =
-		ReadonlyArray{typeof(A),T,ndims(A)}(A)
-
-Base.size(A::ReadonlyArray) = size(A.A)
-
-function Base.getindex(A::ReadonlyArray, i::Int)
-	@boundscheck checkbounds(A, i)
-	@inbounds getindex(A.A, i)
-end
-
-Base.IndexStyle(::Type{<:ReadonlyArray}) = IndexLinear()
-
-struct ScalarArray{T1,T2,N} <: AbstractArray{T1,N}
+struct Repeat{T1,T2,N} <: AbstractArray{T1,N}
 	val::T1
 	size::T2
 
-	ScalarArray{T1,T2,N}(val::T1, size::T2) where {T1,T2,N} = new(val, size)
+	Repeat{T1,T2,N}(val::T1, size::T2) where {T1,T2,N} = new(val, size)
 end
 
-ScalarArray(val::T1, size::T2) where {T1,T2} =
-		ScalarArray{T1,T2,length(size)}(val, size)
+Repeat(val::T1, size::T2) where {T1,T2} =
+		Repeat{T1,T2,length(size)}(val, size)
 
-ScalarArray(val::T1, n::Integer) where {T1} = ScalarArray(val, (n,))
+Repeat(val::T1, n::Integer) where {T1} = Repeat(val, (n,))
 
-Base.size(A::ScalarArray) = A.size
+Base.size(A::Repeat) = A.size
 
-Base.getindex(A::ScalarArray, i::Int) = A.val
+Base.getindex(A::Repeat, i::Int) = A.val
 
-Base.setindex!(A::ScalarArray, v, i::Int) = (A.val = v)
+Base.setindex!(A::Repeat, v, i::Int) = (A.val = v)
 
-Base.IndexStyle(::Type{<:ScalarArray}) = IndexLinear()
+Base.IndexStyle(::Type{<:Repeat}) = IndexLinear()
 
 struct SingleScalarVector{T} <: AbstractVector{T}
 	val::T

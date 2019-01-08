@@ -3,24 +3,26 @@
 module XTC
 
 using ..Dorothy
+using ..Dorothy.Geometry
+using ..Dorothy.PBC
 using ..Dorothy.XDR
 using Formats
 using FormatStreams
+using StaticArrays
 
 export register_xtc, readxtc!
 
-const XTCInt = Int
 const xtc_format_code = 1995
 const xtc_magicints =
-		XTCInt[0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 10, 12, 16, 20, 25, 32, 40, 50, 64,
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 10, 12, 16, 20, 25, 32, 40, 50, 64,
 		80, 101, 128, 161, 203, 256, 322, 406, 512, 645, 812, 1024, 1290,
 		1625, 2048, 2580, 3250, 4096, 5060, 6501, 8192, 10321, 13003,
 		16384, 20642, 26007, 32768, 41285, 52015, 65536,82570, 104031,
 		131072, 165140, 208063, 262144, 330280, 416127, 524287, 660561,
 		832255, 1048576, 1321122, 1664510, 2097152, 2642245, 3329021,
 		4194304, 5284491, 6658042, 8388607, 10568983, 13316085, 16777216]
-const xtc_firstidx = XTCInt(9)
-const xtc_lastidx = XTCInt(length(xtc_magicints))
+const xtc_firstidx = 9
+const xtc_lastidx = length(xtc_magicints)
 
 function register_xtc()
 	Formats.addformat("trajectory/x-xtc")
@@ -80,33 +82,20 @@ end
 
 struct XTCBuffer
 	cic::Vector{UInt8}
-	uic::Vector{XTCInt}
-	fic::Vector{XTCInt}
-	bytes::Vector{XTCInt}
-	minint::Vector{XTCInt}
-	maxint::Vector{XTCInt}
-	sizeint::Vector{XTCInt}
-	bitsizeint::Vector{XTCInt}
-	sizesmall::Vector{XTCInt}
-	prevcoord::Vector{XTCInt}
-	state::Vector{XTCInt}
-	cell::Matrix{Float64}
+	uic::Vector{Int}
+	fic::Vector{Int}
+	bytes::MVector{32,Int}
+	state::MVector{3,Int}
+	cell::MMatrix{3,3,Float64}
 
 	function XTCBuffer(nparticles::Integer)
 		cic = Vector{UInt8}(undef, floor(Int, 3*nparticles*1.5))
 		uic = Vector{UInt8}(undef, 3*nparticles)
 		fic = Vector{UInt8}(undef, 3*nparticles)
-		bytes = Vector{XTCInt}(undef, 32)
-		minint = Vector{XTCInt}(undef, 3)
-		maxint = Vector{XTCInt}(undef, 3)
-		sizeint = Vector{XTCInt}(undef, 3)
-		bitsizeint = Vector{XTCInt}(undef, 3)
-		sizesmall = Vector{XTCInt}(undef, 3)
-		prevcoord = Vector{XTCInt}(undef, 3)
-		state = Vector{XTCInt}(undef, 3)
-		cell = Matrix{Float32}(undef, 3,3)
-		new(cic, uic, fic, bytes, minint, maxint, sizeint, bitsizeint,
-				sizesmall, prevcoord, state, cell)
+		bytes = MVector{32,Int}(undef)
+		state = MVector{3,Int}(undef)
+		cell = MMatrix{3,3,Float64}(undef)
+		new(cic, uic, fic, bytes, state, cell)
 	end
 end
 
@@ -199,7 +188,7 @@ function readxtc!(io::IO, model::MolecularModel,
 	for i = 1:9
 		buffer.cell[i] = read_xdr_float(io) * 10.0
 	end
-	model.header.cell = buffer.cell
+	model.header.cell = pbccell(buffer.cell)
 	skip(io, 4)
 	R = get!(model, :R, undef)
 	if meta.nparticles > 9
@@ -210,14 +199,8 @@ function readxtc!(io::IO, model::MolecularModel,
 	model
 end
 
-function read3dfcoord!(io::IO, R::AbstractArray{<:Real}, meta::XTCMetadata,
+function read3dfcoord!(io::IO, R::AbstractVector{Vector3D}, meta::XTCMetadata,
 		buffer::XTCBuffer)
-	local nparticles::XTCInt, smallidx::XTCInt, nbytes::XTCInt, bitsize::XTCInt,
-			tmp::XTCInt, maxidx::XTCInt, minidx::XTCInt, smaller::XTCInt,
-			smallnum::XTCInt, larger::XTCInt, remainder::XTCInt, i::XTCInt,
-			j::XTCInt, k::XTCInt, run::XTCInt, d::XTCInt, x::XTCInt, y::XTCInt,
-			z::XTCInt, flag::XTCInt, is_smaller::XTCInt, magicints::Vector{XTCInt},
-			firstidx::XTCInt, lastidx::XTCInt
 
 	magicints = xtc_magicints
 	firstidx = xtc_firstidx
@@ -229,23 +212,15 @@ function read3dfcoord!(io::IO, R::AbstractArray{<:Real}, meta::XTCMetadata,
 	uic = buffer.uic
 	fic = buffer.fic
 	bytes = buffer.bytes
-	minint = buffer.minint
-	maxint = buffer.maxint
-	sizeint = buffer.sizeint
-	bitsizeint = buffer.bitsizeint
-	sizesmall = buffer.sizesmall
-	prevcoord = buffer.prevcoord
 	state = buffer.state
 
 	skip(io, 4)
-	minint[1] = read_xdr_int(io)
-	minint[2] = read_xdr_int(io)
-	minint[3] = read_xdr_int(io)
-	maxint[1] = read_xdr_int(io)
-	maxint[2] = read_xdr_int(io)
-	maxint[3] = read_xdr_int(io)
-	smallidx = read_xdr_int(io)
-	nbytes = read_xdr_int(io)
+	minint = SVector{3,Int}(read_xdr_int(io), read_xdr_int(io),
+			read_xdr_int(io))
+	maxint = SVector{3,Int}(read_xdr_int(io), read_xdr_int(io),
+			read_xdr_int(io))
+	smallidx = Int(read_xdr_int(io))
+	nbytes = Int(read_xdr_int(io))
 	if smallidx == 0
 		error("not sure what this error is...")
 	end
@@ -253,13 +228,9 @@ function read3dfcoord!(io::IO, R::AbstractArray{<:Real}, meta::XTCMetadata,
 		error("zero-length compressed coordinates")
 	end
 
-	sizeint[1] = maxint[1] - minint[1] + 1
-	sizeint[2] = maxint[2] - minint[2] + 1
-	sizeint[3] = maxint[3] - minint[3] + 1
+	sizeint = maxint - minint .+ 1
 	if (sizeint[1] | sizeint[2] | sizeint[3]) > 0xffffff
-		bitsizeint[1] = size_of_xdr_int(sizeint[1])
-		bitsizeint[2] = size_of_xdr_int(sizeint[2])
-		bitsizeint[3] = size_of_xdr_int(sizeint[3])
+		bitsizeint = size_of_xdr_int.(sizeint)
 		bitsize = 0
 	else
 		bitsize = size_of_xdr_ints!(bytes, sizeint)
@@ -272,9 +243,8 @@ function read3dfcoord!(io::IO, R::AbstractArray{<:Real}, meta::XTCMetadata,
 	tmp = firstidx > tmp ? firstidx : tmp
 	smaller = div(magicints[tmp+1], 2)
 	smallnum = div(magicints[smallidx+1], 2)
-	sizesmall[1] = magicints[smallidx+1]
-	sizesmall[2] = magicints[smallidx+1]
-	sizesmall[3] = magicints[smallidx+1]
+	sizesmall = SVector(magicints[smallidx+1], magicints[smallidx+1],
+			magicints[smallidx+1])
 	larger = magicints[maxidx+1]
 
 	resize!(cic, nbytes)
@@ -301,8 +271,7 @@ function read3dfcoord!(io::IO, R::AbstractArray{<:Real}, meta::XTCMetadata,
 			uic[y] = decode_xdr_bits!(state, cic, bitsizeint[2])
 			uic[z] = decode_xdr_bits!(state, cic, bitsizeint[3])
 		else
-			decode_xdr_ints!(uic, bytes, state, cic, XTCInt(3), bitsize,
-			sizeint, x)
+			decode_xdr_ints!(uic, bytes, state, cic, 3, bitsize, sizeint, x)
 		end
 		i += 1
 
@@ -310,14 +279,14 @@ function read3dfcoord!(io::IO, R::AbstractArray{<:Real}, meta::XTCMetadata,
 		uic[y] += minint[2]
 		uic[z] += minint[3]
 
-		prevcoord[1] = uic[x]
-		prevcoord[2] = uic[y]
-		prevcoord[3] = uic[z]
+		prevcoordx = uic[x]
+		prevcoordy = uic[y]
+		prevcoordz = uic[z]
 
-		flag = decode_xdr_bits!(state, cic, XTCInt(1))
+		flag = decode_xdr_bits!(state, cic, 1)
 		is_smaller = 0
 		if flag == 1
-			run = decode_xdr_bits!(state, cic, XTCInt(5))
+			run = decode_xdr_bits!(state, cic, 5)
 			is_smaller = run % 3
 			run -= is_smaller
 			is_smaller -= 1
@@ -329,32 +298,32 @@ function read3dfcoord!(io::IO, R::AbstractArray{<:Real}, meta::XTCMetadata,
 			z = d + 3
 			k = 0
 			while k < run
-				decode_xdr_ints!(uic, bytes, state, cic, XTCInt(3), smallidx,
+				decode_xdr_ints!(uic, bytes, state, cic, 3, smallidx,
 						sizesmall, x)
 				i += 1
-				uic[x] += prevcoord[1] - smallnum
-				uic[y] += prevcoord[2] - smallnum
-				uic[z] += prevcoord[3] - smallnum
+				uic[x] += prevcoordx - smallnum
+				uic[y] += prevcoordy - smallnum
+				uic[z] += prevcoordz - smallnum
 				if k == 0
 					tmp = uic[x]
-					uic[x] = prevcoord[1]
-					prevcoord[1] = tmp
+					uic[x] = prevcoordx
+					prevcoordx = tmp
 					tmp = uic[y]
-					uic[y] = prevcoord[2]
-					prevcoord[2] = tmp
+					uic[y] = prevcoordy
+					prevcoordy = tmp
 					tmp = uic[z]
-					uic[z] = prevcoord[3]
-					prevcoord[3] = tmp
-					fic[j] = prevcoord[1]
+					uic[z] = prevcoordz
+					prevcoordz = tmp
+					fic[j] = prevcoordx
 					j += 1
-					fic[j] = prevcoord[2]
+					fic[j] = prevcoordy
 					j += 1
-					fic[j] = prevcoord[3]
+					fic[j] = prevcoordz
 					j += 1
 				else
-					prevcoord[1] = uic[x]
-					prevcoord[2] = uic[y]
-					prevcoord[3] = uic[z]
+					prevcoordx = uic[x]
+					prevcoordy = uic[y]
+					prevcoordz = uic[z]
 				end
 				fic[j] = uic[x]
 				j += 1
@@ -384,18 +353,26 @@ function read3dfcoord!(io::IO, R::AbstractArray{<:Real}, meta::XTCMetadata,
 			smaller = smallnum
 			smallnum = div(magicints[smallidx+1], 2)
 		end
-		sizesmall[1] = sizesmall[2] = sizesmall[3] = magicints[smallidx + 1]
+		sizesmall = SVector(magicints[smallidx+1], magicints[smallidx+1],
+				magicints[smallidx+1])
 	end
 
 	for i in eachindex(R)
-		R[i] = fic[i] * 10 / precision
+		d = (i-1) * 3
+		x = (fic[d+1] * 10) / precision
+		y = (fic[d+2] * 10) / precision
+		z = (fic[d+3] * 10) / precision
+		R[i] = Vector3D(x,y,z)
 	end
 	R
 end
 
 function readxdrcoord!(io::IO, R::AbstractArray{<:Real}, nparticles::Integer)
-	for i = 1:3*nparticles
-		R[i] = read_xdr_float(io)
+	for i = 1:nparticles
+		x = read_xdr_float(io)
+		y = read_xdr_float(io)
+		z = read_xdr_float(io)
+		R[i] = Vector3D(x,y,z)
 	end
 	R
 end

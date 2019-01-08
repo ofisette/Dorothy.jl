@@ -9,9 +9,15 @@ end
 
 function unwrapids!(ids::AbstractVector{<:Integer}, max::Integer)
 	offset = 0
+	atzero = false
 	for i in eachindex(ids)
 		if ids[i] == 0
-			offset += max + 1
+			if ! atzero
+				offset += max + 1
+			end
+			atzero = true
+		else
+			atzero = false
 		end
 		ids[i] += offset
 	end

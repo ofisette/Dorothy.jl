@@ -13,13 +13,20 @@ end
 guesselements!(model::ParticleCollection) =
 		guesselements!(get!(model, :elements, undef), model)
 
-guesselements!(elements::AbstractVector{<:AbstractString},
-		model::ParticleCollection) = guesselements!(elements, model.names,
-		model.resnames)
+function guesselements!(elements::AbstractVector{<:AbstractString},
+		model::ParticleCollection)
+	@boundscheck length(elements) == length(model) ||
+			error("size mismatch between model and output array")
+	guesselements!(elements, model.names, model.resnames)
+end
 
 function guesselements!(elements::AbstractVector{<:AbstractString},
 		names::AbstractVector{<:AbstractString},
 		resnames::AbstractVector{<:AbstractString})
+	@boundscheck begin
+		length(elements) == length(names) == length(resnames) ||
+				error("size mismatch between property arrays")
+	end
 	for i in eachindex(elements)
 		elements[i] = guesselement(names[i], resnames[i])
 	end
@@ -39,48 +46,71 @@ end
 guessmasses!(model::ParticleCollection) =
 		guessmasses!(get!(model, :masses, undef), model)
 
-guessmasses!(masses::AbstractVector{<:Real}, model::ParticleCollection) =
-		guessmasses!(masses, model.names, model.elements)
+function guessmasses!(masses::AbstractVector{<:Real}, model::ParticleCollection)
+	@boundscheck length(masses) == length(model) ||
+			error("size mismatch between model and output array")
+	guessmasses!(masses, model.names,
+			get(model, :elements, guesselements!(model)))
+end
 
 function guessmasses!(masses::AbstractVector{<:Real},
 		names::AbstractVector{<:AbstractString},
 		elements::AbstractVector{<:AbstractString})
+	@boundscheck begin
+		length(masses) == length(names) == length(elements) ||
+				error("size mismatch between property arrays")
+	end
 	for i in eachindex(masses)
 		masses[i] = guessmass(names[i], elements[i])
 	end
 	masses
 end
 
-@inline guessss!(model::ParticleCollection; kwargs...) =
-		guessss!(get!(model, :SS, ""), model; kwargs...)
+abstract type SSGuessStrategy end
 
-@inline guessss!(ss::AbstractVector{<:AbstractString},
-		model::ParticleCollection; alg::Symbol = :stride, kwargs...) =
-		guessss!(Val(alg), ss, model; kwargs...)
+guessss!(model::ParticleCollection) = guessss!(get!(model, :SS, ""), model)
 
-@inline guessss!(::Val{alg}, ss::AbstractVector{<:AbstractString},
-		model::ParticleCollection; kwargs...) where {alg} =
-		error("unknown secondary structure algorithm: $(alg)")
+guessss!(model::ParticleCollection, strategy::SSGuessStrategy) =
+		guessss!(get!(model, :SS, ""), model, strategy)
 
-@inline guessss!(::Val{:stride}, ss::AbstractVector{<:AbstractString},
-		model::ParticleCollection; kwargs...) = stride!(ss, model; kwargs...)
+struct SSByStride <: SSGuessStrategy
+	stridepath::String
 
-function stride!(ss::AbstractVector{<:AbstractString},
-		model::ParticleCollection; kwargs...)
+	SSByStride(stridepath::AbstractString = "stride") = new(stridepath)
+end
+
+guessss!(ss::AbstractVector{<:AbstractString}, model::ParticleCollection) =
+		guessss!(ss, model, SSByStride())
+
+function guessss!(ss::AbstractVector{<:AbstractString},
+		model::ParticleCollection, strategy::SSByStride)
+	@boundscheck length(ss) == length(model) ||
+			error("size mismatch between model and output array")
 	I = findall(map(Protein, model))
 	protein = view(model, I)
-	stride!(view(ss, I), protein.resids, protein.resnames, protein; kwargs...)
-	ss
+	chainids = get(protein, :chainids, Repeat("", length(protein)))
+	Ires2ps = eachresidue(protein).Igroup2items
+	stride!(view(ss, I), protein.names, protein.resids, protein.resnames,
+			chainids, protein.R, Ires2ps, strategy.stridepath)
 end
 
 function stride!(ss::AbstractVector{<:AbstractString},
+		names::AbstractVector{<:AbstractString},
 		resids::AbstractVector{<:Integer},
-		resnames::AbstractVector{<:AbstractString}, protein::ParticleCollection;
-		stridepath::AbstractString = "stride")
-	itemindices = eachresidue(protein).itemindices
+		resnames::AbstractVector{<:AbstractString},
+		chainids::AbstractVector{<:AbstractString},
+		R::AbstractVector{Vector3D},
+		Ires2ps::AbstractVector{<:AbstractVector{<:Integer}},
+		stridepath::AbstractString)
+	n = length(ss)
+	@boundscheck length(names) == length(resids) == length(resnames) ==
+			length(chainids) == length(R) == n ||
+			error("size mismatch between property arrays")
 	striderecords = Tuple{Int,String,String}[]
 	mktemp() do pdbpath, io
-		write(specify(io, "structure/x-pdb"), protein)
+		writepdb(io, nothing, nothing, 1:n, names, resids, resnames, chainids,
+				R, Repeat(1.0, n), Repeat(0.0, n), Repeat("", n), nothing, true,
+				Ref(0))
 		close(io)
 		prevss = ""
 		for line in readlines(open(`$(stridepath) $(pdbpath)`))
@@ -99,14 +129,14 @@ function stride!(ss::AbstractVector{<:AbstractString},
 		end
 	end
 	nstride = length(striderecords)
-	nres = length(itemindices)
+	nres = length(Ires2ps)
 	nstride == nres ||
 			error("cannot assign $(nstride) stride records to $(nres) residues")
-	for (I, (resid, resname, ssi)) in zip(itemindices, striderecords)
+	for (I, (resid, resname, ssi)) in zip(Ires2ps, striderecords)
 		resids[I[1]] == resid ||
-				error("stride resid mismatch at $(resid[I[1]])")
+				error("stride resid $(resid) does not match $(resids[I[1]])")
 		resnames[I[1]] == resname ||
-				error("stride resname mismatch at resid $(resname[I[1]])")
+				error("stride resname mismatch at resid $(resid[I[1]])")
 		for i in I
 			ss[i] = ssi
 		end
@@ -114,45 +144,60 @@ function stride!(ss::AbstractVector{<:AbstractString},
 	ss
 end
 
-guesstopology!(model::ParticleCollection; kwargs...) =
-		guesstopology!(get!(model, :topology, []), model; kwargs...)
+abstract type TopologyGuessStrategy end
 
-function guesstopology!(topology::AbstractGraph, model::ParticleCollection;
-		tol::Real = 0.1)
-	@boundscheck tol > 0 || error("expected strictly positive tolerance")
-	cell = get(model.header, :cell) do
-		lengths = dim(extent(model)) .+
-				(1.0+tol)^2 * 2.0 * maximum(values(covalent_radii))
-		pbccell(lengths...)
+guesstopology!(model::ParticleCollection) =
+		guesstopology!(get!(model, :topology, []), model)
+
+guesstopology!(model::ParticleCollection, strategy::TopologyGuessStrategy) =
+		guesstopology!(get!(model, :topology, []), model, strategy)
+
+struct TopologyByCovalentRadius
+	radii::Dict{String,Float64}
+	tol::Float64
+	dmax::Float64
+
+	function TopologyByCovalentRadius(
+			radii::AbstractDict{<:AbstractString,<:Real} = covalent_radii,
+			tol::Real = 0.1)
+		@boundscheck tol > 0.0 || error("expected strictly positive tolerance")
+		dmax = (1.0+tol) * 2.0 * maximum(values(radii))
+		new(radii, tol, dmax)
 	end
-	Rk = get(model, :Rk) do
-		wrappos!(inv(cell) * model.R)
-	end
+end
+
+guesstopology!(topology::AbstractGraph, model::ParticleCollection) =
+		guesstopology!(topology, model, TopologyByCovalentRadius())
+
+function guesstopology!(topology::AbstractGraph, model::ParticleCollection,
+		strategy::TopologyByCovalentRadius)
+	@boundscheck length(topology) == length(model) ||
+			error("size mismatch between model and output array")
 	elements = get(model, :elements) do
 		guesselements!(similar(model, String), model)
 	end
-	guesstopology!(topology, elements, Rk, cell; tol = tol)
+	cell = get(model.header, :cell, nothing)
+	Rw, Rkw = pbcpos(model.R, cell)
+	pg = posgrid(Rw, Rkw, cell, strategy.dmax)
+	topcov!(topology, elements, Rw, Rkw, cell, pg, strategy.tol, strategy.radii)
 end
 
-function guesstopology!(topology::AbstractGraph,
-		elements::AbstractVector{<:AbstractString}, Rk::AbstractMatrix{<:Real},
-		cell::PBCCell; tol::Real = 0.1)
-	dmax = (1.0+tol) * 2.0 * maximum(values(covalent_radii))
-	g3 = append!(KspaceGrid3{Int}(cell, dmax), Rk, 1:ncols(Rk))
-	Tk = similar(Rk, 3)
-	T = similar(Rk, 3)
+function topcov!(topology::AbstractGraph,
+		elements::AbstractVector{<:AbstractString},
+		Rw::AbstractVector{Vector3D}, Rkw::AbstractVector{Vector3D},
+		cell::Union{TriclinicPBC,Nothing}, pg::PositionGrid, tol::Real,
+		radii::AbstractDict{<:AbstractString,<:Real})
+	@boundscheck length(topology) == length(elements) == length(Rw) ==
+			length(Rkw) || error("size mismatch between property arrays")
 	J = Int[]
-	for i = 1:ncols(Rk)
-		Ak = @view Rk[:,i]
-		for j in findnear!(J, g3, Ak)
-			if i < j
-				ri = covalent_radii[elements[i]]
-				rj = covalent_radii[elements[j]]
-				Bk = @view Rk[:,j]
-				mintrans!(Tk, Ak, Bk)
-				mul!(T, cell, Tk)
-				if norm(T) < (1.0+tol) * (ri+rj)
-					pair!(topology, (i, j))
+	for i in eachindex(Rw)
+		for j in findnear!(J, pg, i)
+			if i != j && elements[i] != "" && elements[j] != ""
+				ri = radii[elements[i]]
+				rj = radii[elements[j]]
+				if mindist(Rw[i], Rkw[i], Rw[j], Rkw[j], cell) <
+						(1.0+tol) * (ri+rj)
+					pair!(topology, (i,j))
 				end
 			end
 		end

@@ -8,21 +8,36 @@ datapath = joinpath(@__DIR__, "..", "data")
 
 @testset "Selection" begin
 
-	m1 = readf("$(datapath)/1BTL.pdb")
-	s1 = view(m1, Water)
-	@test s1.ids == 2039:2237
-	@test length(view(m1, Protein)) == 2032
-	@test length(view(m1, Water)) == 199
-	@test length(view(m1, Water | Protein)) == 2032 + 199
-	@test length(view(m1, Water & Protein)) == 0
-	@test length(view(m1, Expand(Index(1), by=Residue))) == 10
-	@test length(view(m1, Expand(Index(1), by=Chain))) == 2236
-	v1 = view(m1, Water & Within(5.0, Nter, pbc=false))
-	@test length(v1) == 7
-	v2 = view(m1, Water & Within(5.0, Nter, pbc=true))
-	@test length(v2) == 7
-	# m2 = readf("$(datapath)/PLC.pdb")
-	# v2 = view(m2, Water & Within(3.0, Lipid, pbc=false))
-	# writef("test.pdb", v2)
+	@testset "1BTL" begin # Small orthorhombic system
+		model = readf("$(datapath)/1BTL.pdb")
+		sel1 = view(model, Water)
+		@test sel1.ids == 2039:2237
+		@test length(view(model, Protein)) == 2032
+		@test length(view(model, Water)) == 199
+		@test length(view(model, Water | Protein)) == 2032 + 199
+		@test length(view(model, Water & Protein)) == 0
+		@test length(view(model, Expand(Index(1), by=Residue))) == 10
+		@test length(view(model, Expand(Index(1), by=Chain))) == 2236
+		sel2 = view(model, Water & Within(5.0, of=Nter))
+		@test length(sel2) == 7
+		# TODO: Increase the distance to get water from a periodic image, so we
+		# can compare to the non-periodic system.
+		sel3 = view(model, Water & Within(5.0, of=Nter))
+		@test length(sel3) == 7
+	end
+
+	@testset "1BTL-np" begin # Non-periodic system
+		model = readf("$(datapath)/1BTL.pdb")
+		delete!(model.header, :cell)
+	end
+
+	@testset "MHC" begin # Rhombododecahedral system
+		model = readf("$(datapath)/MHC.pdb")
+	end
+
+	@testset "PLC" begin # Very large orthorhombic system
+		model = readf("$(datapath)/PLC.pdb")
+		sel1 = view(model, Water & Expand(Within(3.0, of=Lipid), by=Residue))
+	end
 
 end # @testset

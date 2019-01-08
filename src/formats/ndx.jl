@@ -14,36 +14,41 @@ function register_ndx()
 	Formats.addwriter("text/x-ndx", DorothyIO())
 end
 
+const AbstractIndex = AbstractDict{<:AbstractString,<:AbstractVector{<:Integer}}
+
 Base.read(::DorothyIO, ::MIME"text/x-ndx", io::IO, args...; kwargs...) =
-		readndx!(io, args...; kwargs...)
+		readndx!(io, Dict{String,Vector{Int}}(), args...; kwargs...)
 
-Base.write(::DorothyIO, ::MIME"text/x-ndx", io::IO,
-		groups::AbstractDict{<:AbstractString,<:Integer}, args...; kwargs...) =
-		writendx(io, groups, args...; kwargs...)
+Base.read!(::DorothyIO, ::MIME"text/x-ndx", io::IO, index::AbstractIndex,
+		args...; kwargs...) = readndx!(io, index, args...; kwargs...)
 
-function readndx(io::IO)
-	groups = Dict{String,Vector{Int}}()
+Base.write(::DorothyIO, ::MIME"text/x-ndx", io::IO, index::AbstractIndex,
+		args...; kwargs...) = writendx(io, index, args...; kwargs...)
+
+function readndx!(io::IO, index::AbstractIndex)
+	empty!(index)
+	local I::Vector{Int}
 	for line in eachline(io)
 		if startswith(line, "[")
-			name = strip(line[2:end-1])
-			indices = Int[]
-			groups[title] = indices
+			group = strip(line[2:end-1])
+			I = Int[]
+			index[group] = I
 		else
 			for token in split(line)
-				push!(indices, parse(Int, token))
+				push!(I, parse(Int, token))
 			end
 		end
 	end
-	groups
+	index
 end
 
-function writendx(io::IO, groups::AbstractDict{<:AbstractString,<:Integer})
-	for (i, (title, indices)) in enumerate(pairs(groups))
-		if i != 0
+function writendx(io::IO, index::AbstractIndex)
+	for (n, (group, I)) in enumerate(pairs(index))
+		if n != 0
 			print(io, "\n")
 		end
-		print(io, "[ $(title) ]\n")
-		print(io, join(indices, " "))
+		print(io, "[ $(group) ]\n")
+		print(io, join(I, " "))
 		print(io, "\n")
 	end
 end

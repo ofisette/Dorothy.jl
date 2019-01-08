@@ -20,14 +20,13 @@ Headers.headerval(::MolecularModelHeader, ::Val{:time}, v::Real) = Float64(v)
 
 Headers.headerval(::MolecularModelHeader, ::Val{:lambda}, v::Real) = Float64(v)
 
-Headers.headerval(::MolecularModelHeader, ::Val{:cell},
-		v::AbstractMatrix{<:Real}) = pbccell(v)
+Headers.headerval(::MolecularModelHeader, ::Val{:cell}, v::TriclinicPBC) = v
 
 Headers.headerval(::MolecularModelHeader, ::Val{:pressure},
-		v::AbstractMatrix{<:Real}) = pbccell(v)
+		v::AbstractMatrix{<:Real}) = Basis3D(v)
 
 Headers.headerval(::MolecularModelHeader, ::Val{:virial},
-		v::AbstractMatrix{<:Real}) = pbccell(v)
+		v::AbstractMatrix{<:Real}) = Basis3D(v)
 
 mutable struct MolecularModel <: Multicollection
 	header::MolecularModelHeader
@@ -108,32 +107,22 @@ Multicollections.collval(::MolecularModel, ::Val{:elements}, n::Integer,
 		::UndefInitializer) = FixedArray(Vector{String}(undef, n))
 
 Multicollections.collval(::MolecularModel, ::Val{:R}, n::Integer, v) =
-		(FixedArray(VectorBasedMatrix(Vector{Float64}(undef, 3*n), 3)) .= v)
+		(FixedArray(Vector{Vector3D}(undef, n)) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:R}, n::Integer,
-		::UndefInitializer) =
-		FixedArray(VectorBasedMatrix(Vector{Float64}(undef, 3*n), 3))
-
-Multicollections.collval(::MolecularModel, ::Val{:Rk}, n::Integer, v) =
-		(FixedArray(VectorBasedMatrix(Vector{Float64}(undef, 3*n), 3)) .= v)
-
-Multicollections.collval(::MolecularModel, ::Val{:Rk}, n::Integer,
-		::UndefInitializer) =
-		FixedArray(VectorBasedMatrix(Vector{Float64}(undef, 3*n), 3))
+		::UndefInitializer) = FixedArray(Vector{Vector3D}(undef, n))
 
 Multicollections.collval(::MolecularModel, ::Val{:V}, n::Integer, v) =
-		(FixedArray(VectorBasedMatrix(Vector{Float64}(undef, 3*n), 3)) .= v)
+		(FixedArray(Vector{Vector3D}(undef, n)) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:V}, n::Integer,
-		::UndefInitializer) =
-		FixedArray(VectorBasedMatrix(Vector{Float64}(undef, 3*n), 3))
+		::UndefInitializer) = FixedArray(Vector{Vector3D}(undef, n))
 
 Multicollections.collval(::MolecularModel, ::Val{:F}, n::Integer, v) =
-		(FixedArray(VectorBasedMatrix(Vector{Float64}(undef, 3*n), 3)) .= v)
+		(FixedArray(Vector{Vector3D}(undef, n)) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:F}, n::Integer,
-		::UndefInitializer) =
-		FixedArray(VectorBasedMatrix(Vector{Float64}(undef, 3*n), 3))
+		::UndefInitializer) = FixedArray(Vector{Vector3D}(undef, n))
 
 Multicollections.collval(::MolecularModel, ::Val{:masses}, n::Integer, v) =
 		(FixedArray(Vector{Float64}(undef, n)) .= v)
@@ -184,18 +173,6 @@ Multicollections.colltoitemprop(::Particle, ::Val{:chainids}) = :chainid
 Multicollections.itemtocollprop(::Particle, ::Val{:element}) = :elements
 Multicollections.colltoitemprop(::Particle, ::Val{:elements}) = :element
 
-Multicollections.itemtocollprop(::Particle, ::Val{:R}) = :R
-Multicollections.colltoitemprop(::Particle, ::Val{:R}) = :R
-
-Multicollections.itemtocollprop(::Particle, ::Val{:Rk}) = :Rk
-Multicollections.colltoitemprop(::Particle, ::Val{:Rk}) = :Rk
-
-Multicollections.itemtocollprop(::Particle, ::Val{:V}) = :V
-Multicollections.colltoitemprop(::Particle, ::Val{:V}) = :V
-
-Multicollections.itemtocollprop(::Particle, ::Val{:F}) = :F
-Multicollections.colltoitemprop(::Particle, ::Val{:F}) = :F
-
 Multicollections.itemtocollprop(::Particle, ::Val{:mass}) = :masses
 Multicollections.colltoitemprop(::Particle, ::Val{:masses}) = :mass
 
@@ -215,21 +192,27 @@ Multicollections.collitemname(::MolecularModel) = "particle"
 
 function hierarchy(model::ParticleCollection)
 	n = length(model)
-	chainids = get(model, :chainids, ScalarArray("", n))
-	resids = get(model, :resids, ScalarArray(0, n))
-	hierarchy(model, chainids, resids)
+	chainids = get(model, :chainids, Repeat("", n))
+	resids = get(model, :resids, Repeat(0, n))
+	(Ichain2ps, Ip2chain), (Ires2ps, Ip2res), (Ilocalres2ps, Ip2localres) =
+			hierarchy(chainids, resids)
+	(chains = MulticollectionSplit(model, Ichain2ps, Ip2chain),
+			residues = MulticollectionSplit(model, Ires2ps, Ip2res),
+			localresidues = MulticollectionSplit(model, Ilocalres2ps,
+			Ip2localres))
 end
 
-function hierarchy(model::ParticleCollection,
-		chainids::AbstractVector{<:AbstractString},
+function hierarchy(chainids::AbstractVector{<:AbstractString},
 		resids::AbstractVector{<:Integer})
-	chainindices = similar(model, Int)
-	resindices = similar(model, Int)
-	localresindices = similar(model, Int)
-	chainparticleindices = UnitRange{Int}[]
-	resparticleindices = UnitRange{Int}[]
-	localresparticleranges = Vector{UnitRange{Int}}[]
-	n = length(model)
+	n = length(chainids)
+	@boundscheck length(resids) == n ||
+			error("size mismatch between chainid and resid arrays")
+	Ip2chain = Vector{Int}(undef, n)
+	Ip2res = Vector{Int}(undef, n)
+	Ip2localres = Vector{Int}(undef, n)
+	Ichain2ps = UnitRange{Int}[]
+	Ires2ps = UnitRange{Int}[]
+	localresranges = Vector{UnitRange{Int}}[]
 	if n > 0
 		thischainindex = 1
 		thisresindex = 1
@@ -240,20 +223,20 @@ function hierarchy(model::ParticleCollection,
 		resend = 1
 		lastchainid = chainids[1]
 		lastresid = resids[1]
-		chainindices[1] = 1
-		resindices[1] = 1
-		localresindices[1] = 1
+		Ip2chain[1] = 1
+		Ip2res[1] = 1
+		Ip2localres[1] = 1
 		i = 2
 		while i <= n
 			thischainid = chainids[i]
 			thisresid = resids[i]
 			if thischainid != lastchainid
-				push!(chainparticleindices, chainstart:chainend)
-				push!(resparticleindices, resstart:resend)
-				if thislocalresindex > length(localresparticleranges)
-					push!(localresparticleranges, [resstart:resend])
+				push!(Ichain2ps, chainstart:chainend)
+				push!(Ires2ps, resstart:resend)
+				if thislocalresindex > length(localresranges)
+					push!(localresranges, [resstart:resend])
 				else
-					push!(localresparticleranges[thislocalresindex],
+					push!(localresranges[thislocalresindex],
 							resstart:resend)
 				end
 				thischainindex += 1
@@ -268,11 +251,11 @@ function hierarchy(model::ParticleCollection,
 			else
 				chainend += 1
 				if thisresid != lastresid
-					push!(resparticleindices, resstart:resend)
-					if thislocalresindex > length(localresparticleranges)
-						push!(localresparticleranges, [resstart:resend])
+					push!(Ires2ps, resstart:resend)
+					if thislocalresindex > length(localresranges)
+						push!(localresranges, [resstart:resend])
 					else
-						push!(localresparticleranges[thislocalresindex],
+						push!(localresranges[thislocalresindex],
 								resstart:resend)
 					end
 					thisresindex += 1
@@ -284,26 +267,21 @@ function hierarchy(model::ParticleCollection,
 					resend += 1
 				end
 			end
-			chainindices[i] = thischainindex
-			resindices[i] = thisresindex
-			localresindices[i] = thislocalresindex
+			Ip2chain[i] = thischainindex
+			Ip2res[i] = thisresindex
+			Ip2localres[i] = thislocalresindex
 			i += 1
 		end
-		push!(chainparticleindices, chainstart:chainend)
-		push!(resparticleindices, resstart:resend)
-		if thislocalresindex > length(localresparticleranges)
-			push!(localresparticleranges, [resstart:resend])
+		push!(Ichain2ps, chainstart:chainend)
+		push!(Ires2ps, resstart:resend)
+		if thislocalresindex > length(localresranges)
+			push!(localresranges, [resstart:resend])
 		else
-			push!(localresparticleranges[thislocalresindex],
-					resstart:resend)
+			push!(localresranges[thislocalresindex], resstart:resend)
 		end
 	end
-	localresparticleindices = [RangeVector(i) for i in localresparticleranges]
-	(chains = MulticollectionSplit(model, chainparticleindices,
-			chainindices), residues = MulticollectionSplit(model,
-			resparticleindices, resindices), localresidues =
-			MulticollectionSplit(model, localresparticleindices,
-			localresindices))
+	Ilocalres2ps = [RangeVector(i) for i in localresranges]
+	(Ichain2ps, Ip2chain), (Ires2ps, Ip2res), (Ilocalres2ps, Ip2localres)
 end
 
 eachchain(model::ParticleCollection) = hierarchy(model).chains
@@ -312,35 +290,39 @@ eachresidue(model::ParticleCollection) = hierarchy(model).residues
 
 eachlocalresidue(model::ParticleCollection) = hierarchy(model).localresidues
 
-eachfragment(model::ParticleCollection) =
-		eachfragment(model, get(model, :topology, Graph(length(model))))
+function eachfragment(model::ParticleCollection)
+	G = get(model, :topology, Graph(length(model)))
+	(Ifrag2ps, Ip2frag) = eachfragment(G)
+	MulticollectionSplit(model, Ifrag2ps, Ip2frag)
+end
 
-function eachfragment(model::ParticleCollection, G::AbstractGraph)
-	fragindices = similar(G, Int)
-	fragparticleindices = Vector{Int}[]
+function eachfragment(G::AbstractGraph)
+	Ip2frag = similar(G, Int)
+	Ifrag2ps = Vector{Int}[]
 	visited = falses(length(G))
 	i = 1
 	thisfragindex = 1
 	while true
 		I = sort!(connected!(Int[], G, i, visited))
-		push!(fragparticleindices, I)
-		fragindices[I] .= thisfragindex
+		push!(Ifrag2ps, I)
+		Ip2frag[I] .= thisfragindex
 		thisfragindex += 1
 		i = findnext(!, visited, i+1)
 		if i == nothing
 			break
 		end
 	end
-	MulticollectionSplit(model, fragparticleindices, fragindices)
+	Ifrag2ps, Ip2frag
 end
 
-function chainindices(model::ParticleCollection, i::Integer)
+function chainat(model::ParticleCollection, i::Integer)
 	@boundscheck checkbounds(model, i)
-	chainids = get(model, :chainids, ScalarArray("", length(model)))
-	chainindices(chainids, i)
+	chainids = get(model, :chainids, Repeat("", length(model)))
+	view(model, chainat(chainids, i))
 end
 
-function chainindices(chainids::AbstractArray{<:AbstractString}, i::Integer)
+function chainat(chainids::AbstractArray{<:AbstractString}, i::Integer)
+	@boundscheck checkbounds(chainids, i)
 	n = length(chainids)
 	thischainid = chainids[i]
 	firsti = i
@@ -357,17 +339,22 @@ function chainindices(chainids::AbstractArray{<:AbstractString}, i::Integer)
 	firsti:lasti
 end
 
-function residueindices(model::ParticleCollection, i::Integer)
+function residueat(model::ParticleCollection, i::Integer)
 	@boundscheck checkbounds(model, i)
 	n = length(model)
-	chainids = get(model, :chainids, ScalarArray("", n))
-	resids = get(model, :resids, ScalarArray(0, n))
-	residueindices(chainids, resids, i)
+	chainids = get(model, :chainids, Repeat("", n))
+	resids = get(model, :resids, Repeat(0, n))
+	view(model, residueat(chainids, resids, i))
 end
 
-function residueindices(chainids::AbstractArray{<:AbstractString},
+function residueat(chainids::AbstractArray{<:AbstractString},
 		resids::AbstractArray{<:Integer}, i::Integer)
-	n = length(resids)
+	n = length(chainids)
+	@boundscheck begin
+		length(resids) == n ||
+				error("size mismatch between chainid and resid arrays")
+		checkbounds(chainids, i)
+	end
 	thischainid = chainids[i]
 	thisresid = resids[i]
 	firsti = i - 1
@@ -385,7 +372,10 @@ function residueindices(chainids::AbstractArray{<:AbstractString},
 	firsti:lasti
 end
 
-fragmentindices(model::ParticleCollection, i::Integer) =
-		fragmentindices(get(model, :topology, Graph(length(model))), i)
+function fragmentat(model::ParticleCollection, i::Integer)
+	@boundscheck checkbounds(model, i)
+	topology = get(model, :topology, Graph(length(model)))
+	view(model, fragmentat(topology, i))
+end
 
-fragmentindices(G::AbstractGraph, i::Integer) = sort!(connected(G, i))
+fragmentat(G::AbstractGraph, i::Integer) = sort!(connected(G, i))

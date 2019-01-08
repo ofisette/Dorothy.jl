@@ -4,8 +4,9 @@ module PDB
 
 using Printf
 using ..Dorothy
-using ..Dorothy.Utils
 using ..Dorothy.Geometry
+using ..Dorothy.PBC
+using ..Dorothy.Utils
 using Formats
 
 export register_pdb, readpdb!, writepdb
@@ -25,8 +26,8 @@ end
 Base.read(::DorothyIO, ::MIME"structure/x-pdb", io::IO, args...; kwargs...) =
 		readpdb!(io, MolecularModel(), args...; kwargs...)
 
-Base.read!(::DorothyIO, ::MIME"structure/x-pdb", model::MolecularModel, args...;
-		kwargs...) = readpdb!(io, model, args...; kwargs...)
+Base.read!(::DorothyIO, ::MIME"structure/x-pdb", io::IO, model::MolecularModel,
+		args...; kwargs...) = readpdb!(io, model, args...; kwargs...)
 
 Base.write(::DorothyIO, ::MIME"structure/x-pdb", io::IO,
 		model::ParticleCollection, args...; kwargs...) =
@@ -36,7 +37,7 @@ pdb_particle_name(resname::AbstractString) =
 		length(resname) > 3 ? resname : @sprintf(" %-3s", resname)
 
 function readpdb!(io::IO, model::MolecularModel;
-		lnoffset::AbstractArray{<:Integer,0} = zeros(Int))
+		lnoffset::Ref{<:Integer} = Ref(0))
 	ids = get!(model, :ids, undef)
 	names = get!(model, :names, undef)
 	resids = get!(model, :resids, undef)
@@ -55,10 +56,10 @@ function readpdb!(io::IO, model::MolecularModel, ids::AbstractVector{<:Integer},
 		resids::AbstractVector{<:Integer},
 		resnames::AbstractVector{<:AbstractString},
 		chainids::AbstractVector{<:AbstractString},
-		R::AbstractMatrix{<:Real}, occupancies::AbstractVector{<:Real},
+		R::AbstractVector{Vector3D}, occupancies::AbstractVector{<:Real},
 		bfactors::AbstractVector{<:Real},
 		elements::AbstractVector{<:AbstractString},
-		lnoffset::AbstractArray{<:Integer,0})
+		lnoffset::Ref{<:Integer})
 
 	@debug "reading PDB molecular structure"
 	titlelines = String[]
@@ -80,9 +81,9 @@ function readpdb!(io::IO, model::MolecularModel, ids::AbstractVector{<:Integer},
 				error("multiple cell definitions")
 			else
 				tokens = split(line[7:end])
-				lengths = [parse(Float64, token) for token in tokens[1:3]]
+				sides = [parse(Float64, token) for token in tokens[1:3]]
 				angles = [parse(Float64, token) for token in tokens[4:6]]
-				cell = pbccell(lengths, deg2rad.(angles))
+				cell = pbccell(sides, deg2rad.(angles))
 			end
 		elseif startswith(line, "END")
 			@debug "stopping" ln
@@ -94,9 +95,9 @@ function readpdb!(io::IO, model::MolecularModel, ids::AbstractVector{<:Integer},
 	lnoffset[] = ln
 
 	@debug "preparing molecular model"
-	nparticles = length(atomrecords)
-	nparticles > 0 || error("no particle record found")
-	resize!(model, nparticles)
+	n = length(atomrecords)
+	n > 0 || error("no particle record found")
+	resize!(model, n)
 	if length(titlelines) > 0
 		model.header.title = join(titlelines, " ")
 	end
@@ -104,7 +105,7 @@ function readpdb!(io::IO, model::MolecularModel, ids::AbstractVector{<:Integer},
 		model.header.cell = cell
 	end
 
-	@debug "parsing particle records" nparticles
+	@debug "parsing particle records" n
 	prevline = repeat("\n" , 78)
 	for (i, (ln, line)) in enumerate(atomrecords)
 		@debug "parsing particle record" i ln
@@ -127,11 +128,12 @@ function readpdb!(io::IO, model::MolecularModel, ids::AbstractVector{<:Integer},
 		@debug "parsing resid"
 		resids[i] = parse(Int, SubString(line, 23, 26))
 		@debug "parsing Rx"
-		R[1,i] = parse(Float64, SubString(line, 31, 38))
+		x = parse(Float64, SubString(line, 31, 38))
 		@debug "parsing Ry"
-		R[2,i] = parse(Float64, SubString(line, 39, 46))
+		y = parse(Float64, SubString(line, 39, 46))
 		@debug "parsing Rz"
-		R[3,i] = parse(Float64, SubString(line, 47, 54))
+		z = parse(Float64, SubString(line, 47, 54))
+		R[i] = Vector3D(x,y,z)
 		@debug "parsing occupancy"
 		occupancies[i] = parse(Float64, SubString(line, 55, 60))
 		@debug "parsing B"
@@ -153,41 +155,47 @@ end
 
 function writepdb(io::IO, model::ParticleCollection;
 		modelid::Union{Integer,Nothing} = nothing, endrecord::Bool = true,
-		lnoffset::AbstractArray{<:Integer,0} = zeros(Int))
-	nparticles = length(model)
-	writepdb(io, nparticles, get(model.header, :title, nothing),
-			get(model.header, :cell, nothing), model.ids, model.names,
-			model.resids, model.resnames,
-			get(model, :chainids, ScalarArray("", nparticles)), model.R,
-			get(model, :occupancies, ScalarArray(1.0, nparticles)),
-			get(model, :bfactors, ScalarArray(0.0, nparticles)),
-			get(model, :elements, ScalarArray("", nparticles)), modelid,
+		lnoffset::Ref{<:Integer} = Ref(0))
+	n = length(model)
+	writepdb(io, get(model.header, :title, nothing),
+			get(model.header, :cell, nothing), get(model, :ids, 1:n),
+			model.names, model.resids, model.resnames,
+			get(model, :chainids, Repeat("", n)), model.R,
+			get(model, :occupancies, Repeat(1.0, n)),
+			get(model, :bfactors, Repeat(0.0, n)),
+			get(model, :elements, Repeat("", n)), modelid,
 			endrecord, lnoffset)
 end
 
-function writepdb(io::IO, nparticles::Integer,
-		title::Union{AbstractString,Nothing},
-		cell::Union{AbstractMatrix{<:Real},Nothing},
-		ids::AbstractVector{<:Integer}, names::AbstractVector{<:AbstractString},
+function writepdb(io::IO, title::Union{AbstractString,Nothing},
+		cell::Union{TriclinicPBC,Nothing}, ids::AbstractVector{<:Integer},
+		names::AbstractVector{<:AbstractString},
 		resids::AbstractVector{<:Integer},
 		resnames::AbstractVector{<:AbstractString},
-		chainids::AbstractVector{<:AbstractString}, R::AbstractMatrix{<:Real},
+		chainids::AbstractVector{<:AbstractString}, R::AbstractVector{Vector3D},
 		occupancies::AbstractVector{<:Real}, bfactors::AbstractVector{<:Real},
 		elements::AbstractVector{<:AbstractString},
 		modelid::Union{Integer,Nothing}, endrecord::Bool,
-		lnoffset::AbstractArray{<:Integer,0})
+		lnoffset::Ref{<:Integer})
 	@debug "writing PDB molecular structure"
+	n = length(ids)
 
 	@debug "checking model properties"
-	nparticles > 0 || error("number of particles must be strictly positive")
-	i = findfirst(x -> length(x) > 4, names)
-	i == nothing || error("particle $(i): name exceeds 4 chars")
-	i = findfirst(x -> length(x) > 4, resnames)
-	i == nothing || error("particle $(i): resname exceeds 4 chars")
-	i = findfirst(x -> length(x) > 1, chainids)
-	i == nothing || error("particle $(i): chainid exceeds 1 char")
-	i = findfirst(x -> length(x) > 2, elements)
-	i == nothing || error("particle $(i): element exceeds 2 chars")
+	@boundscheck begin
+		n > 0 || error("number of particles must be strictly positive")
+		length(names) == length(resids) == length(resnames) ==
+				length(chainids) == length(R) == length(occupancies) ==
+				length(bfactors) == length(elements) ||
+				error("size mismatch between property arrays")
+		i = findfirst(x -> length(x) > 4, names)
+		i == nothing || error("particle $(i): name exceeds 4 chars")
+		i = findfirst(x -> length(x) > 4, resnames)
+		i == nothing || error("particle $(i): resname exceeds 4 chars")
+		i = findfirst(x -> length(x) > 1, chainids)
+		i == nothing || error("particle $(i): chainid exceeds 1 char")
+		i = findfirst(x -> length(x) > 2, elements)
+		i == nothing || error("particle $(i): element exceeds 2 chars")
+	end
 
 	ln = lnoffset[]
 
@@ -208,9 +216,9 @@ function writepdb(io::IO, nparticles::Integer,
 	if cell != nothing
 		ln += 1
 		@debug "writing cell" ln
-		lengths, angles = pbcbox(cell)
+		sides, angles = pbcgeometry(cell)
 		@printf(io, "CRYST1%9.3f%9.3f%9.3f%7.2f%7.2f%7.2f P 1           1\n",
-				lengths..., rad2deg.(angles)...)
+				sides..., rad2deg.(angles)...)
 	end
 
 	if modelid != nothing
@@ -219,18 +227,18 @@ function writepdb(io::IO, nparticles::Integer,
 		@printf(io, "MODEL     %4d\n", modelid)
 	end
 
-	@debug "writing particle records" nparticles
-	for i = 1:nparticles
+	@debug "writing particle records" n
+	for i = 1:n
 		ln += 1
 		@debug "writing particle record" i ln
 		id = wrapid(ids[i], 99999)
 		name = pdb_particle_name(names[i])
 		resid = wrapid(resids[i], 9999)
-		x, y, z = R[1,i], R[2,i], R[3,i]
-		element_i = (elements[i] == "H" ? "" : elements[i])
+		x, y, z = R[i]
+		element = (elements[i] == "H" ? "" : elements[i])
 		@printf(io, "ATOM  %5d %4s %-4s%1s%4d    %8.3f%8.3f%8.3f%6.2f%6.2f          %2s  \n",
 				id, name, resnames[i], chainids[i], resid, x, y, z,
-				occupancies[i], bfactors[i], elements[i])
+				occupancies[i], bfactors[i], element)
 	end
 
 	if modelid != nothing

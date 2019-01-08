@@ -5,7 +5,10 @@ module Gromos87
 using Printf
 using ..Dorothy
 using ..Dorothy.Utils
+using ..Dorothy.Geometry
+using ..Dorothy.PBC
 using Formats
+using StaticArrays
 
 export register_gromos87, readgromos87!, writegromos87
 
@@ -30,7 +33,7 @@ Base.write(::DorothyIO, ::MIME"structure/x-gro", io::IO,
 		writegromos87(io, model, args...; kwargs...)
 
 function readgromos87!(io::IO, model::MolecularModel;
-		lnoffset::AbstractArray{<:Integer,0} = zeros(Int))
+		lnoffset::Ref{<:Integer} = Ref(0))
 	@debug "reading Gromos87 molecular structure"
 
 	ln = lnoffset[] + 1
@@ -49,13 +52,12 @@ function readgromos87!(io::IO, model::MolecularModel;
 	ln += 1
 	@debug "reading number of particles" ln
 	line = readline(io)
-	nparticles = parse(Int, line)
-	nparticles > 0 ||
-			error("$(ln): number of particles must be strictly positive")
+	n = parse(Int, line)
+	n > 0 || error("$(ln): number of particles must be strictly positive")
 
-	@debug "reading particle records" nparticles
-	records = sizehint!(Tuple{Int,String}[], nparticles)
-	for i = 1:nparticles
+	@debug "reading particle records" n
+	records = sizehint!(Tuple{Int,String}[], n)
+	for i = 1:n
 		ln += 1
 		@debug "reading particle record" i ln
 		push!(records, (ln, readline(io)))
@@ -67,19 +69,19 @@ function readgromos87!(io::IO, model::MolecularModel;
 	tokens = split(line)
 	3 <= length(tokens) <= 9 ||
 			error("l$(ln): expected 3 to 9 cell vector components")
-	cell = zeros(3,3)
+	M = zeros(MMatrix{3,3})
 	for (i, token) in enumerate(tokens)
-		cell[gromos87_cellorder[i]...] = parse(Float64, token) * 10
+		M[gromos87_cellorder[i]...] = parse(Float64, token) * 10
 	end
 	lnoffset[] = ln
 
 	@debug "preparing molecular model"
-	resize!(model, nparticles)
+	resize!(model, n)
 	model.header.title = title
 	if time != nothing
 		model.header.time = time
 	end
-	model.header.cell = cell
+	model.header.cell = pbccell(M)
 	ids = get!(model, :ids, undef)
 	names = get!(model, :names, undef)
 	resids = get!(model, :resids, undef)
@@ -103,8 +105,8 @@ end
 function readgromos87!(ids::AbstractVector{<:Integer},
 		names::AbstractVector{<:AbstractString},
 		resids::AbstractVector{<:Integer},
-		resnames::AbstractVector{<:AbstractString}, R::AbstractMatrix{<:Real},
-		V::Union{AbstractMatrix{<:Real},Nothing},
+		resnames::AbstractVector{<:AbstractString}, R::AbstractVector{Vector3D},
+		V::Union{AbstractVector{Vector3D},Nothing},
 		records::AbstractVector{<:Tuple{Integer,AbstractString}})
 	prevline = repeat("\n" , 68)
 	for (i, (ln, line)) in enumerate(records)
@@ -122,18 +124,20 @@ function readgromos87!(ids::AbstractVector{<:Integer},
 		@debug "parsing id"
 		ids[i] = parse(Int, SubString(line, 16, 20))
 		@debug "parsing Rx"
-		R[1,i] = parse(Float64, SubString(line, 21, 28)) * 10.0
+		x = parse(Float64, SubString(line, 21, 28)) * 10.0
 		@debug "parsing Ry"
-		R[2,i] = parse(Float64, SubString(line, 29, 36)) * 10.0
+		y = parse(Float64, SubString(line, 29, 36)) * 10.0
 		@debug "parsing Rz"
-		R[3,i] = parse(Float64, SubString(line, 37, 44)) * 10.0
+		z = parse(Float64, SubString(line, 37, 44)) * 10.0
+		R[i] = Vector3D(x,y,z)
 		if V != nothing
 			@debug "parsing Vx"
-			V[1,i] = parse(Float64, SubString(line, 45, 52)) * 10.0
+			x = parse(Float64, SubString(line, 45, 52)) * 10.0
 			@debug "parsing Vy"
-			V[2,i] = parse(Float64, SubString(line, 53, 60)) * 10.0
+			y = parse(Float64, SubString(line, 53, 60)) * 10.0
 			@debug "parsing Vz"
-			V[3,i] = parse(Float64, SubString(line, 61, 68)) * 10.0
+			z = parse(Float64, SubString(line, 61, 68)) * 10.0
+			V[i] = Vector3D(x,y,z)
 		end
 		prevline = line
 	end
@@ -142,27 +146,34 @@ function readgromos87!(ids::AbstractVector{<:Integer},
 end
 
 writegromos87(io::IO, model::ParticleCollection;
-		lnoffset::AbstractArray{<:Integer,0} = zeros(Int)) =
-		writegromos87(io, length(model), get(model.header, :title, ""),
+		lnoffset::Ref{<:Integer} = Ref(0)) =
+		writegromos87(io, get(model.header, :title, ""),
 		get(model.header, :time, nothing), get(model.header, :cell, zeros(3,3)),
-		model.ids, model.names, model.resids, model.resnames, model.R,
-		get(model, :V, nothing), lnoffset)
+		get(model, :ids, 1:length(model)), model.names, model.resids,
+		model.resnames, model.R, get(model, :V, nothing), lnoffset)
 
-function writegromos87(io::IO, nparticles::Integer, title::AbstractString,
-		time::Union{Real,Nothing}, cell::AbstractMatrix{<:Real},
-		ids::AbstractVector{<:Integer}, names::AbstractVector{<:AbstractString},
+function writegromos87(io::IO, title::AbstractString, time::Union{Real,Nothing},
+		cell::TriclinicPBC, ids::AbstractVector{<:Integer},
+		names::AbstractVector{<:AbstractString},
 		resids::AbstractVector{<:Integer},
-		resnames::AbstractVector{<:AbstractString}, R::AbstractMatrix{<:Real},
-		V::Union{AbstractMatrix{<:Real},Nothing},
-		lnoffset::AbstractArray{<:Integer,0})
+		resnames::AbstractVector{<:AbstractString}, R::AbstractVector{Vector3D},
+		V::Union{AbstractVector{Vector3D},Nothing}, lnoffset::Ref{<:Integer})
 	@debug "writing Gromos87 molecular structure"
+	n = length(ids)
 
 	@debug "checking model properties"
-	nparticles > 0 || error("number of particles must be strictly positive")
-	i = findfirst(x -> length(x) > 5, names)
-	i == nothing || error("particle $(i): name exceeds 5 chars")
-	i = findfirst(x -> length(x) > 5, resnames)
-	i == nothing || error("particle $(i): resname exceeds 5 chars")
+	@boundscheck begin
+		n > 0 || error("number of particles must be strictly positive")
+		length(names) == length(resids) == length(resnames) == length(R) == n ||
+				error("size mismatch between property arrays")
+		if V != nothing && length(V) != n
+			error("size mismatch between property arrays")
+		end
+		i = findfirst(x -> length(x) > 5, names)
+		i == nothing || error("particle $(i): name exceeds 5 chars")
+		i = findfirst(x -> length(x) > 5, resnames)
+		i == nothing || error("particle $(i): resname exceeds 5 chars")
+	end
 
 	ln = lnoffset[] + 1
 	@debug "writing header" ln
@@ -174,29 +185,30 @@ function writegromos87(io::IO, nparticles::Integer, title::AbstractString,
 
 	ln += 1
 	@debug "writing number of particles" ln
-	write(io, "$(nparticles)\n")
+	write(io, "$(n)\n")
 
-	@debug "writing particle records" nparticles
-	for i = 1:nparticles
+	@debug "writing particle records" n
+	for i = 1:n
 		ln += 1
 		@debug "writing particle record" i ln
 		if V == nothing
 			@printf(io, "%5d%-5s%5s%5d%8.3f%8.3f%8.3f\n",
 					wrapid(resids[i], 99999), resnames[i],
 					names[i], wrapid(ids[i], 99999),
-					R[1,i] / 10.0, R[2,i] / 10.0, R[3,i] / 10.0)
+					R[i].x / 10.0, R[i].y / 10.0, R[i].z / 10.0)
 		else
 			@printf(io, "%5d%5s%5s%5d%8.3f%8.3f%8.3f%8.4f%8.4f%8.4f\n",
 					wrapid(resids[i], 99999), resnames[i],
 					names[i], wrapid(ids[i], 99999),
-					R[1,i] / 10.0, R[2,i] / 10.0, R[3,i] / 10.0,
-					V[1,i] / 10.0, V[2,i] / 10.0, V[3,i] / 10.0)
+					R[i].x / 10.0, R[i].y / 10.0, R[i].z / 10.0,
+					V[i].x / 10.0, V[i].y / 10.0, V[i].z / 10.0)
 		end
 	end
 
 	ln += 1
 	@debug "writing cell" ln
-	gromos87_cell = [cell[i,j] / 10.0 for (i,j) in gromos87_cellorder]
+	M = pbcmatrix(cell)
+	gromos87_cell = [M[i,j] / 10.0 for (i,j) in gromos87_cellorder]
 	if all(x -> isapprox(x, 0.0, atol=0.00001), gromos87_cell[4:9])
 		@printf(io, "   %.5f   %.5f   %.5f\n", gromos87_cell[1:3]...)
 	else
