@@ -4,6 +4,7 @@ authors = ["Olivier Fisette <ofisette@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+FormatCodecs = "a47eb616-a233-11e8-2942-8f6edcc0bc9d"
 FormatStreams = "6bb377a4-aa12-11e8-0b8b-dd9755c73f41"
 Formats = "eb180938-a0cb-11e8-14d8-335c76514f04"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
