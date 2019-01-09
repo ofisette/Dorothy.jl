@@ -23,15 +23,15 @@ datapath = joinpath(@__DIR__, "..", "data")
 		@test length(view(model, Expand(Index(1), by=Chain))) == 2236
 		sel2 = view(model, Water & Within(5.0, of=Nter))
 		@test length(sel2) == 7
-		# TODO: Increase the distance to get water from a periodic image, so we
-		# can compare to the non-periodic system.
-		sel3 = view(model, Water & Within(5.0, of=Nter))
-		@test length(sel3) == 7
+		sel3 = view(model, Water & Within(45.0, of=Nter))
+		@test length(sel3) == 199
 	end
 
 	@testset "1BTL-np" begin # Non-periodic system
 		model = readf("$(datapath)/1BTL.pdb")
 		delete!(model.header, :cell)
+		sel3 = view(model, Water & Within(45.0, of=Nter))
+		@test length(sel3) == 188
 	end
 
 	@testset "MHC" begin # Rhombododecahedral system

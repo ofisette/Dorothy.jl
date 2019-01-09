@@ -647,31 +647,9 @@ PeriodicGrid3D{T}(bb::BoundingBox, D::AbstractVector{<:Real}) where {T} =
 Base.resize!(g3::Grid3D, bb::BoundingBox, D::AbstractVector{<:Real}) =
 		resize!(g3, bb, Vector3D(D))
 
-function Base.resize!(g3::NonperiodicGrid3D{T}, bb::BoundingBox,
-		D::Vector3D) where {T}
+function Base.resize!(g3::Grid3D{T}, bb::BoundingBox, D::Vector3D) where {T}
 	@boundscheck all(x -> (x > 0), D) || error("invalid cell dimension")
-	O = minimum(bb)
-	(nx,ny,nz) = floor.(Int, dims(bb) ./ D) .+ 1
-	resizecells!(g3, (nx,ny,nz))
-	g3.O = O
-	g3.D = D
-	g3
-end
-
-function Base.resize!(g3::PeriodicGrid3D{T}, bb::BoundingBox,
-		D::Vector3D) where {T}
-	@boundscheck all(x -> (x > 0), D) || error("invalid cell dimension")
-	O = minimum(bb)
-	(nx,ny,nz) = floor.(Int, dims(bb) ./ D)
-	D = dims(bb) ./ Vector3D(nx,ny,nz)
-	resizecells!(g3, (nx,ny,nz))
-	g3.O = O
-	g3.D = D
-	g3
-end
-
-function resizecells!(g3::Grid3D{T},
-		(nx,ny,nz)::Tuple{Integer,Integer,Integer}) where {T}
+	(nx,ny,nz), D = gridparams(g3, bb, D)
 	if any((nx,ny,nz) .> g3.N)
 		g3.cells = Array{Vector{T},3}(undef, nx,ny,nz)
 		for x in 1:nx
@@ -685,7 +663,20 @@ function resizecells!(g3::Grid3D{T},
 		empty!(g3)
 	end
 	g3.N = (nx,ny,nz)
+	g3.O = minimum(bb)
+	g3.D = D
 	g3
+end
+
+function gridparams(g3::NonperiodicGrid3D, bb::BoundingBox, D::Vector3D)
+	N = floor.(Int, dims(bb) ./ D) .+ 1
+	N, D
+end
+
+function gridparams(g3::PeriodicGrid3D, bb::BoundingBox, D::Vector3D)
+	N = max.(1, floor.(Int, dims(bb) ./ D))
+	D = dims(bb) ./ N
+	N, D
 end
 
 function Base.sizehint!(g3::Grid3D, n::Integer)
@@ -716,6 +707,13 @@ Base.push!(g3::Grid3D{T}, R::Vector3D, v::T) where {T} =
 
 function Base.push!(g3::Grid3D{T}, (x,y,z)::Tuple{Integer,Integer,Integer},
 		v::T) where {T}
+	#=
+	@boundscheck begin
+		(nx,ny,nz) = g3.N
+		(1 <= x <= nx) && (1 <= y <= ny) && (1 <= z <= nz) ||
+				error("cannot push value to a cell outside the grid")
+	end
+	=#
 	push!(g3.cells[x,y,z], v)
 	g3
 end
@@ -746,9 +744,8 @@ function findcell(g3::PeriodicGrid3D, R::Vector3D)
 	x, y, z
 end
 
-findnear(g3::Grid3D, R::AbstractVector{<:Real}) = findnear(g3, Vector3D(R))
-
-findnear(g3::Grid3D, R::Vector3D) = findnear(g3, findcell(R))
+findnear(g3::Grid3D{T}, R::AbstractVector{<:Real}) where {T} =
+		findnear(T[], g3, R)
 
 findnear(g3::Grid3D{T}, (x,y,z)::Tuple{Integer,Integer,Integer}) where {T} =
 		findnear!(T[], g3, (x,y,z))
