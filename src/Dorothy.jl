@@ -1,3 +1,6 @@
+"""
+Molecular structure manipulation and analysis
+"""
 module Dorothy
 
 using LinearAlgebra
