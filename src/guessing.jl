@@ -177,25 +177,25 @@ function guesstopology!(topology::AbstractGraph, model::ParticleCollection,
 		guesselements!(similar(model, String), model)
 	end
 	cell = get(model.header, :cell, nothing)
-	Rw, Rkw = pbcpos(model.R, cell)
-	pg = posgrid(Rw, Rkw, cell, strategy.dmax)
-	topcov!(topology, elements, Rw, Rkw, cell, pg, strategy.tol, strategy.radii)
+	Rw, Kw = pbcpos(model.R, cell)
+	pg = posgrid(Rw, Kw, cell, strategy.dmax)
+	topcov!(topology, elements, Rw, Kw, cell, pg, strategy.tol, strategy.radii)
 end
 
 function topcov!(topology::AbstractGraph,
 		elements::AbstractVector{<:AbstractString},
-		Rw::AbstractVector{Vector3D}, Rkw::AbstractVector{Vector3D},
+		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		cell::Union{TriclinicPBC,Nothing}, pg::PositionGrid, tol::Real,
 		radii::AbstractDict{<:AbstractString,<:Real})
 	@boundscheck length(topology) == length(elements) == length(Rw) ==
-			length(Rkw) || error("size mismatch between property arrays")
+			length(Kw) || error("size mismatch between property arrays")
 	J = Int[]
 	for i in eachindex(Rw)
 		for j in findnear!(J, pg, i)
 			if i != j && elements[i] != "" && elements[j] != ""
 				ri = radii[elements[i]]
 				rj = radii[elements[j]]
-				if mindist(Rw[i], Rkw[i], Rw[j], Rkw[j], cell) <
+				if mindist(Rw[i], Kw[i], Rw[j], Kw[j], cell) <
 						(1.0+tol) * (ri+rj)
 					pair!(topology, (i,j))
 				end

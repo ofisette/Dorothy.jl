@@ -11,15 +11,15 @@ end
 function getpbcpos!(cache::SelectionCache, R::AbstractVector{Vector3D},
 		cell::Union{TriclinicPBC,Nothing})
 	get!(cache, :pbcpos) do
-		Rw, Rkw = get!(cache, :pbcposbuffer) do
+		Rw, Kw = get!(cache, :pbcposbuffer) do
 			similar(R), similar(R)
 		end
-		pbcpos!(Rw, Rkw, R, cell)
+		pbcpos!(Rw, Kw, R, cell)
 	end
 end
 
 function getposgrid!(cache::SelectionCache, Rw::AbstractVector{Vector3D},
-		Rkw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
+		Kw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
 		d::Real)
 	grids = get!(cache, :posgrids) do
 		Dict{Int,PositionGrid}()
@@ -32,7 +32,7 @@ function getposgrid!(cache::SelectionCache, Rw::AbstractVector{Vector3D},
 		buffer = get!(buffers, ceild) do
 			posgrid(cell)
 		end
-		posgrid!(buffer, Rw, Rkw, cell, ceild)
+		posgrid!(buffer, Rw, Kw, cell, ceild)
 	end
 end
 
@@ -280,6 +280,15 @@ MapSelector(map::T) where {T<:AbstractVector{<:Bool}} = MapSelector{T}(map)
 
 Map(map::AbstractVector{<:Bool}) = MapSelector(map)
 
+function Map(view::MolecularModelView)
+	model = parent(view)
+	map = falses(length(model))
+	for i in parentindices(view)
+		map[i] = true
+	end
+	MapSelector(map)
+end
+
 function select!(s::MapSelector, results::BitVector, model::ParticleCollection,
 		subset::AbstractVector{<:Integer}, cache::SelectionCache)
 	for i in subset
@@ -300,6 +309,9 @@ IndexSelector(f::T1, by::T2) where {T1,T2<:SelectBy} =
 Index(X...; by::SelectBy = SelectByParticle()) =
 		IndexSelector(selection_index_f(X...), by)
 
+# BUG: Here, I could end up being a single integer returned by a function. We
+# could overload selectindices! accordingly. Or just use a union and iterate
+# over the integer!
 function select!(s::IndexSelector, results::BitVector,
 		model::ParticleCollection, subset::AbstractVector{<:Integer},
 		cache::SelectionCache)
@@ -429,10 +441,10 @@ function select!(s::WithinPositionSelector, results::BitVector,
 	end
 	split = s.by(model, cache)
 	cell = get(model.header, :cell, nothing)
-	Rw, Rkw = getpbcpos!(cache, model.R, cell)
-	pg = getposgrid!(cache, Rw, Rkw, cell, s.d)
+	Rw, Kw = getpbcpos!(cache, model.R, cell)
+	pg = getposgrid!(cache, Rw, Kw, cell, s.d)
 	Rref = s.of(model, cache)
-	selectwithinpos!(work, split.Igroup2items, split.Iitem2group, Rw, Rkw, cell,
+	selectwithinpos!(work, split.Igroup2items, split.Iitem2group, Rw, Kw, cell,
 			Rref, s.d, pg)
 	for i in subset
 		results[i] = work[i]
@@ -442,7 +454,7 @@ end
 function selectwithinpos!(results::BitVector,
 		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}},
 		Ip2group::AbstractVector{<:Integer}, Rw::AbstractVector{Vector3D},
-		Rkw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
+		Kw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
 		Rref::AbstractVector{Vector3D}, d::Real, pg::PositionGrid)
 	d2 = d^2
 	I = Int[]
@@ -450,7 +462,7 @@ function selectwithinpos!(results::BitVector,
 		Rrefiw, Rrefikw = pbcpos(Rrefi, cell)
 		for i in findnear!(I, pg, Rrefi)
 			if ! results[i]
-				if sqmindist(Rw[i], Rkw[i], Rrefiw, Rrefikw, cell) <= d2
+				if sqmindist(Rw[i], Kw[i], Rrefiw, Rrefikw, cell) <= d2
 					for j in Igroup2ps[Ip2group[i]]
 						results[j] = true
 					end
@@ -492,10 +504,10 @@ function select!(s::WithinSelectionSelector, results::BitVector,
 	end
 	split = s.by(model, cache)
 	cell = get(model.header, :cell, nothing)
-	Rw, Rkw = getpbcpos!(cache, model.R, cell)
-	pg = getposgrid!(cache, Rw, Rkw, cell, s.d)
+	Rw, Kw = getpbcpos!(cache, model.R, cell)
+	pg = getposgrid!(cache, Rw, Kw, cell, s.d)
 	Iref = findall(map(s.of, model, cache))
-	selectwithinsel!(work, split.Igroup2items, split.Iitem2group, Rw, Rkw, cell,
+	selectwithinsel!(work, split.Igroup2items, split.Iitem2group, Rw, Kw, cell,
 			Iref, s.d, pg)
 	for i in subset
 		results[i] = work[i]
@@ -505,14 +517,14 @@ end
 function selectwithinsel!(results::BitVector,
 		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}},
 		Ip2group::AbstractVector{<:Integer}, Rw::AbstractVector{Vector3D},
-		Rkw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
+		Kw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
 		Iref::AbstractVector{<:Integer}, d::Real, pg::PositionGrid)
 	d2 = d^2
 	J = Int[]
 	for i in Iref
 		for j in findnear!(J, pg, i)
 			if ! results[j]
-				if sqmindist(Rw[j], Rkw[j], Rw[i], Rkw[i], cell) <= d2
+				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= d2
 					for k in Igroup2ps[Ip2group[j]]
 						results[k] = true
 					end
@@ -651,7 +663,7 @@ const CAlpha = Name("CA") & Protein
 
 const Cα = CAlpha
 
-const Nter = Index(1, by=LocalResidue) & Protein
+const Nter = Index(first, by=LocalResidue) & Protein
 
 const Cter = Index(last, by=LocalResidue) & Protein
 

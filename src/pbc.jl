@@ -113,8 +113,8 @@ Geometry.isinside(R::Vector3D, cell::OrthorhombicPBC) =
 		(0.0 <= R.x < dims(cell).x) && (0.0 <= R.y < dims(cell).y) &&
 		(0.0 <= R.z < dims(cell).z)
 
-Geometry.isinside(Rk::Vector3D, ::Kspace) =
-		(0.0 <= Rk.x < 1.0) && (0.0 <= Rk.y < 1.0) && (0.0 <= Rk.z < 1.0)
+Geometry.isinside(K::Vector3D, ::Kspace) =
+		(0.0 <= K.x < 1.0) && (0.0 <= K.y < 1.0) && (0.0 <= K.z < 1.0)
 
 function Geometry.volume(((a,b,c),(α,β,γ))::PBCGeometry)
 	cosα, cosβ, cosγ = cos(α), cos(β), cos(γ)
@@ -284,7 +284,7 @@ wrappos(R::AbstractVector{<:Real}, cell::TriclinicPBC) =
 
 wrappos(R::Vector3D, cell::TriclinicPBC) = cell * wrappos(inv(cell) * R, kspace)
 
-wrappos(Rk::Vector3D, ::Kspace) = (Rk - floor.(Rk))
+wrappos(K::Vector3D, ::Kspace) = (K - floor.(K))
 
 wrappos!(R::AbstractVector{Vector3D}, cell::TriclinicPBC) =
 		wrappos!(cog, R, cell)
@@ -303,9 +303,9 @@ pbcpos(R::AbstractVector{<:Real}, cell::TriclinicPBC) =
 		pbcpos(Vector3D(R), cell)
 
 function pbcpos(R::Vector3D, cell::TriclinicPBC)
-	Rkw = wrappos(inv(cell) * R, kspace)
-	Rw = cell * Rkw
-	Rw, Rkw
+	Kw = wrappos(inv(cell) * R, kspace)
+	Rw = cell * Kw
+	Rw, Kw
 end
 
 pbcpos(R::Vector3D, ::Nothing) = R, R
@@ -313,26 +313,26 @@ pbcpos(R::Vector3D, ::Nothing) = R, R
 pbcpos(R::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing}) =
 		pbcpos!(similar(R), similar(R), R, cell)
 
-function pbcpos!(Rw::AbstractVector{Vector3D}, Rkw::AbstractVector{Vector3D},
+function pbcpos!(Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		R::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing})
-	@boundscheck length(Rw) == length(Rkw) == length(R) ||
+	@boundscheck length(Rw) == length(Kw) == length(R) ||
 			error("size mismatch between position arrays")
 	for i in eachindex(R)
-		Rw[i], Rkw[i] = pbcpos(R[i], cell)
+		Rw[i], Kw[i] = pbcpos(R[i], cell)
 	end
-	Rw, Rkw
+	Rw, Kw
 end
 
 struct PBCImageIterator{T<:TriclinicPBC}
-	Rkw::Vector3D
+	Kw::Vector3D
 	cell::T
 
-	PBCImageIterator{T}(Rkw::Vector3D, cell::T) where {T<:TriclinicPBC} =
-			new(Rkw, cell)
+	PBCImageIterator{T}(Kw::Vector3D, cell::T) where {T<:TriclinicPBC} =
+			new(Kw, cell)
 end
 
-PBCImageIterator(Rkw::Vector3D, cell::T) where {T<:TriclinicPBC} =
-		PBCImageIterator{T}(Rkw, cell)
+PBCImageIterator(Kw::Vector3D, cell::T) where {T<:TriclinicPBC} =
+		PBCImageIterator{T}(Kw, cell)
 
 Base.eltype(::Type{PBCImageIterator}) = Vector3D
 
@@ -353,15 +353,15 @@ function Base.iterate(iter::PBCImageIterator, n = 1)
 	if n > 26
 		nothing
 	else
-		iter.cell * (iter.Rkw + pbcfirstshell[n]), n + 1
+		iter.cell * (iter.Kw + pbcfirstshell[n]), n + 1
 	end
 end
 
 eachimage(R::Vector3D, cell::TriclinicPBC) =
 		PBCImageIterator(wrappos(inv(cell) * R, kspace), cell)
 
-eachimage(Rw::Vector3D, Rkw::Vector3D, cell::TriclinicPBC) =
-		PBCImageIterator(Rkw, cell)
+eachimage(Rw::Vector3D, Kw::Vector3D, cell::TriclinicPBC) =
+		PBCImageIterator(Kw, cell)
 
 nearestpos(R::AbstractVector{<:Real}, O::AbstractVector{<:Real},
 		cell::Union{TriclinicPBC,Nothing}) =
@@ -370,14 +370,14 @@ nearestpos(R::AbstractVector{<:Real}, O::AbstractVector{<:Real},
 nearestpos(R::Vector3D, O::Vector3D, cell::Union{TriclinicPBC,Nothing}) =
 		nearestpos(pbcpos(R, cell)..., O, cell)
 
-function nearestpos(Rw::Vector3D, Rkw::Vector3D, O::Vector3D,
+function nearestpos(Rw::Vector3D, Kw::Vector3D, O::Vector3D,
 		cell::TriclinicPBC)
 	Rwmin = Rw
 	d2min = sqdist(Rw, O)
 	if d2min < cell.r2
 		return Rwmin
 	end
-	for Rwi in eachimage(Rw, Rkw, cell)
+	for Rwi in eachimage(Rw, Kw, cell)
 		d2 = sqdist(Rwi, O)
 		if d2 < cell.r2
 			return Rwi
@@ -389,7 +389,7 @@ function nearestpos(Rw::Vector3D, Rkw::Vector3D, O::Vector3D,
 	Rwmin
 end
 
-function nearestpos(Rw::Vector3D, Rkw::Vector3D, O::Vector3D,
+function nearestpos(Rw::Vector3D, Kw::Vector3D, O::Vector3D,
 		cell::OrthorhombicPBC)
 	(dx,dy,dz) = O - Rw
 	(x,y,z) = Rw
@@ -411,7 +411,7 @@ function nearestpos(Rw::Vector3D, Rkw::Vector3D, O::Vector3D,
 	Vector3D(x,y,z)
 end
 
-nearestpos(Rw::Vector3D, Rkw::Vector3D, O::Vector3D, ::Nothing) = Rw
+nearestpos(Rw::Vector3D, Kw::Vector3D, O::Vector3D, ::Nothing) = Rw
 
 nearestpos!(R::AbstractVector{Vector3D}, O::AbstractVector{<:Real},
 		cell::Union{TriclinicPBC,Nothing}) = nearestpos!(R, Vector3D(O), cell)
@@ -501,38 +501,38 @@ function unwrap!(R::AbstractVector{Vector3D}, cell::TriclinicPBC,
 	cell(R)
 end
 
-function unwrap!(Rk::AbstractVector{Vector3D}, ::Kspace,
+function unwrap!(K::AbstractVector{Vector3D}, ::Kspace,
 		strategy::UnwrapByExtent)
-	@boundscheck length(Rk) > 1 || error("cannot unwrap fewer than 2 positions")
-	Rkdims = dims(extent(Rk))
-	if Rkdims.x > 0.5
-		for i in eachindex(Rk)
-			x, y, z = Rk[i]
+	@boundscheck length(K) > 1 || error("cannot unwrap fewer than 2 positions")
+	Kdims = dims(extent(K))
+	if Kdims.x > 0.5
+		for i in eachindex(K)
+			x, y, z = K[i]
 			x -= 0.5
 			x -= floor(x)
 			x += 0.5
-			Rk[i] = Vector3D(x,y,z)
+			K[i] = Vector3D(x,y,z)
 		end
 	end
-	if Rkdims.y > 0.5
-		for i in eachindex(Rk)
-			x, y, z = Rk[i]
+	if Kdims.y > 0.5
+		for i in eachindex(K)
+			x, y, z = K[i]
 			y -= 0.5
 			y -= floor(y)
 			y += 0.5
-			Rk[i] = Vector3D(x,y,z)
+			K[i] = Vector3D(x,y,z)
 		end
 	end
-	if Rkdims.z > 0.5
-		for i in eachindex(Rk)
-			x, y, z = Rk[i]
+	if Kdims.z > 0.5
+		for i in eachindex(K)
+			x, y, z = K[i]
 			z -= 0.5
 			z -= floor(z)
 			z += 0.5
-			Rk[i] = Vector3D(x,y,z)
+			K[i] = Vector3D(x,y,z)
 		end
 	end
-	Rk
+	K
 end
 
 struct UnwrapByGap <: UnwrapStrategy
@@ -556,54 +556,54 @@ function unwrap!(R::AbstractVector{Vector3D}, cell::TriclinicPBC,
 	cell(R)
 end
 
-function unwrap!(Rk::AbstractVector{Vector3D}, ::Kspace,
+function unwrap!(K::AbstractVector{Vector3D}, ::Kspace,
 		strategy::UnwrapByGap)
-	@boundscheck length(Rk) > 1 || error("cannot unwrap fewer than 2 positions")
-	Rks = resize!(strategy.buffer, length(Rk))
-	Rks .= Rk
-	sort!(Rks, by = R -> R.x)
-	for i = 2:length(Rks)
-		if Rks[i].x - Rks[i-1].x > strategy.D.x
-			d = Rks[i].x
-			for j in eachindex(Rk)
-				x, y, z = Rk[j]
+	@boundscheck length(K) > 1 || error("cannot unwrap fewer than 2 positions")
+	Ks = resize!(strategy.buffer, length(K))
+	Ks .= K
+	sort!(Ks, by = R -> R.x)
+	for i = 2:length(Ks)
+		if Ks[i].x - Ks[i-1].x > strategy.D.x
+			d = Ks[i].x
+			for j in eachindex(K)
+				x, y, z = K[j]
 				x -= d
 				x -= floor(x)
 				x += d
-				Rk[j] = Vector3D(x,y,z)
+				K[j] = Vector3D(x,y,z)
 			end
 			break
 		end
 	end
-	sort!(Rks, by = R -> R.y)
-	for i = 2:length(Rks)
-		if Rks[i].y - Rks[i-1].y > strategy.D.y
-			d = Rks[i].y
-			for j in eachindex(Rk)
-				x, y, z = Rk[j]
+	sort!(Ks, by = R -> R.y)
+	for i = 2:length(Ks)
+		if Ks[i].y - Ks[i-1].y > strategy.D.y
+			d = Ks[i].y
+			for j in eachindex(K)
+				x, y, z = K[j]
 				y -= d
 				y -= floor(y)
 				y += d
-				Rk[j] = Vector3D(x,y,z)
+				K[j] = Vector3D(x,y,z)
 			end
 			break
 		end
 	end
-	sort!(Rks, by = R -> R.z)
-	for i = 2:length(Rks)
-		if Rks[i].z - Rks[i-1].z > strategy.D.z
-			d = Rks[i].z
-			for j in eachindex(Rk)
-				x, y, z = Rk[j]
+	sort!(Ks, by = R -> R.z)
+	for i = 2:length(Ks)
+		if Ks[i].z - Ks[i-1].z > strategy.D.z
+			d = Ks[i].z
+			for j in eachindex(K)
+				x, y, z = K[j]
 				z -= d
 				z -= floor(z)
 				z += d
-				Rk[j] = Vector3D(x,y,z)
+				K[j] = Vector3D(x,y,z)
 			end
 			break
 		end
 	end
-	Rk
+	K
 end
 
 abstract type PositionGrid end
@@ -657,17 +657,17 @@ function PeriodicPositionGrid(cell::TriclinicPBC)
 	PeriodicPositionGrid(g3, I, cell)
 end
 
-PeriodicPositionGrid(Rkw::AbstractVector{Vector3D}, cell::TriclinicPBC,
+PeriodicPositionGrid(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC,
 		d::Real) =
-		PeriodicPositionGrid(PeriodicPositionGrid(cell), Rkw, cell, d)
+		PeriodicPositionGrid(PeriodicPositionGrid(cell), Kw, cell, d)
 
 function PeriodicPositionGrid(pg::PeriodicPositionGrid,
-		Rkw::AbstractVector{Vector3D}, cell::TriclinicPBC, d::Real)
+		Kw::AbstractVector{Vector3D}, cell::TriclinicPBC, d::Real)
 	D = [1.0,1.0,1.0] - inv(cell) * (dims(cell) .- d)
 	g3 = resize!(pg.g3, extent([0.0,0.0,0.0], [1.0,1.0,1.0]), D)
-	I = resize!(pg.I, length(Rkw))
-	for i in eachindex(Rkw)
-		(x,y,z) = findcell(g3, Rkw[i])
+	I = resize!(pg.I, length(Kw))
+	for i in eachindex(Kw)
+		(x,y,z) = findcell(g3, Kw[i])
 		push!(g3, (x,y,z), i)
 		I[i] = (x,y,z)
 	end
@@ -680,7 +680,7 @@ Geometry.findnear(pg::PositionGrid, R::AbstractVector{<:Real}) =
 		findnear!(Int[], pg, R)
 
 Geometry.findnear(pg::PositionGrid, Rw::AbstractVector{<:Real},
-		Rkw::AbstractVector{<:Real}) = findnear!(Int[], pg, Rw, Rkw)
+		Kw::AbstractVector{<:Real}) = findnear!(Int[], pg, Rw, Kw)
 
 Geometry.findnear!(dest::AbstractVector{<:Integer}, pg::PositionGrid,
 		i::Integer) = findnear!(dest, pg.g3, pg.I[i])
@@ -689,11 +689,11 @@ Geometry.findnear!(dest::AbstractVector{<:Integer}, pg::PositionGrid,
 		R::AbstractVector{<:Real}) = findnear!(dest, pg, pbcpos(R, pg.cell)...)
 
 Geometry.findnear!(dest::AbstractVector{<:Integer}, pg::PositionGrid,
-		Rw::AbstractVector{<:Real}, Rkw::AbstractVector{<:Real}) =
-		findnear!(dest, pg, Vector3D(Rw), Vector3D(Rkw))
+		Rw::AbstractVector{<:Real}, Kw::AbstractVector{<:Real}) =
+		findnear!(dest, pg, Vector3D(Rw), Vector3D(Kw))
 
 Geometry.findnear!(dest::AbstractVector{<:Integer}, pg::PositionGrid,
-		Rw::Vector3D, Rkw::Vector3D) = findnear!(dest, pg.g3, Rkw)
+		Rw::Vector3D, Kw::Vector3D) = findnear!(dest, pg.g3, Kw)
 
 posgrid(::Nothing) = NonperiodicPositionGrid()
 
@@ -702,22 +702,22 @@ posgrid(cell::TriclinicPBC) = PeriodicPositionGrid(cell)
 posgrid(R::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
 		d::Real) = posgrid(pbcpos(R, cell)..., cell, d)
 
-posgrid(Rw::AbstractVector{Vector3D}, Rkw::AbstractVector{Vector3D},
+posgrid(Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		::Nothing, d::Real) = NonperiodicPositionGrid(Rw, d)
 
-posgrid(Rw::AbstractVector{Vector3D}, Rkw::AbstractVector{Vector3D},
-		cell::TriclinicPBC, d::Real) = PeriodicPositionGrid(Rkw, cell, d)
+posgrid(Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
+		cell::TriclinicPBC, d::Real) = PeriodicPositionGrid(Kw, cell, d)
 
 posgrid!(pg::PositionGrid, R::AbstractVector{Vector3D},
 		cell::Union{TriclinicPBC,Nothing}, d::Real) =
 		posgrid(pg, pbcpos(R, cell)..., cell, d)
 
 posgrid!(pg::NonperiodicPositionGrid, Rw::AbstractVector{Vector3D},
-		Rkw::AbstractVector{Vector3D}, ::Nothing, d::Real) =
+		Kw::AbstractVector{Vector3D}, ::Nothing, d::Real) =
 		NonperiodicPositionGrid(pg, Rw, d)
 
 posgrid!(pg::PeriodicPositionGrid, Rw::AbstractVector{Vector3D},
-		Rkw::AbstractVector{Vector3D}, cell::TriclinicPBC, d::Real) =
-		PeriodicPositionGrid(pg, Rkw, cell, d)
+		Kw::AbstractVector{Vector3D}, cell::TriclinicPBC, d::Real) =
+		PeriodicPositionGrid(pg, Kw, cell, d)
 
 end # module
