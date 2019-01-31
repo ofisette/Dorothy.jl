@@ -9,9 +9,9 @@ datapath = joinpath(@__DIR__, "..", "..", "data")
 @testset "TRR" begin
 
 	@testset "Single" begin
-		f1 = guess("$(datapath)/eMHC.trr")
+		f1 = infer("$(datapath)/eMHC.trr")
 		@test getformat(f1) == "trajectory/x-trr"
-		f2 = guess(open("$(datapath)/eMHC.trr"))
+		f2 = infer(open("$(datapath)/eMHC.trr"))
 		@test getformat(f2) == "trajectory/x-trr"
 		m1 = read(f2)
 		@test m1.header.step == 0

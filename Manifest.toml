@@ -1,3 +1,5 @@
+# This file is machine-generated - editing it directly is not advised
+
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
@@ -39,9 +41,9 @@ version = "0.5.1"
 
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
-git-tree-sha1 = "ec61a16eed883ad0cfa002d7489b3ce6d039bb9a"
+git-tree-sha1 = "49269e311ffe11ac5b334681d212329002a9832a"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "1.4.0"
+version = "1.5.1"
 
 [[Dates]]
 deps = ["Printf"]
@@ -52,12 +54,12 @@ deps = ["Mmap"]
 uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 
 [[Distributed]]
-deps = ["LinearAlgebra", "Random", "Serialization", "Sockets"]
+deps = ["Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[FormatCodecs]]
 deps = ["CodecBzip2", "CodecXz", "CodecZlib", "Formats"]
-git-tree-sha1 = "acb654faea3c856c357a3e302cab8e2c519f98f4"
+git-tree-sha1 = "2abdae31c370ab6ffb5ac822ced9b80392a0edce"
 repo-rev = "master"
 repo-url = "https://github.com/ofisette/FormatCodecs.jl"
 uuid = "a47eb616-a233-11e8-2942-8f6edcc0bc9d"
@@ -65,7 +67,7 @@ version = "0.1.0"
 
 [[FormatStreams]]
 deps = ["Formats"]
-git-tree-sha1 = "dbcf6f981b9f42ea257341eb2653cf51de5a681f"
+git-tree-sha1 = "9c1a7ef154014d175a75e2a668b01aef3fe7fe86"
 repo-rev = "master"
 repo-url = "https://github.com/ofisette/FormatStreams.jl"
 uuid = "6bb377a4-aa12-11e8-0b8b-dd9755c73f41"
@@ -73,7 +75,7 @@ version = "0.1.0"
 
 [[Formats]]
 deps = ["TranscodingStreams"]
-git-tree-sha1 = "b5ed966f88476197f8fb32e60bd2a38643d3285e"
+git-tree-sha1 = "d4fa246a8039ee429a35ec988d2c4a040abad7e8"
 repo-rev = "master"
 repo-url = "https://github.com/ofisette/Formats.jl"
 uuid = "eb180938-a0cb-11e8-14d8-335c76514f04"
@@ -86,7 +88,7 @@ uuid = "0862f596-cf2d-50af-8ef4-f2be67dfa83f"
 version = "0.2.1"
 
 [[InteractiveUtils]]
-deps = ["LinearAlgebra", "Markdown"]
+deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[LibCURL]]
@@ -162,9 +164,9 @@ uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[StaticArrays]]
 deps = ["InteractiveUtils", "LinearAlgebra", "Random", "Statistics", "Test"]
-git-tree-sha1 = "ebc5c2a27d91d5ec611a9861168182e2168effd3"
+git-tree-sha1 = "1eb114d6e23a817cd3e99abc3226190876d7c898"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "0.9.2"
+version = "0.10.2"
 
 [[Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
@@ -187,7 +189,7 @@ uuid = "30578b45-9adc-5946-b283-645ec420af67"
 version = "0.4.0"
 
 [[UUIDs]]
-deps = ["Random"]
+deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [[Unicode]]
