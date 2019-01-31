@@ -33,7 +33,7 @@ export
 		DorothyIO
 
 include("utils.jl")
-include("header.jl")
+include("headers.jl")
 include("graphs.jl")
 include("geometry.jl")
 include("pbc.jl")
@@ -48,7 +48,7 @@ using .Multicollections
 
 include("models.jl")
 include("properties.jl")
-include("selection.jl")
+include("selections.jl")
 
 struct DorothyIO <: Formats.FormatHandler end
 
