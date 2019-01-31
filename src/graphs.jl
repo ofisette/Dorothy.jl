@@ -6,7 +6,7 @@ using .Iterators: repeated
 using ..Dorothy.Utils
 
 export
-		AbstractGraph, Graph, FixedGraph, neighbors!, pairs, connected,
+		AbstractGraph, Graph, GraphView, neighbors!, pairs, connected,
 		connected!, follow, follow!, isisolated, pair!, unpair!, isolate!
 
 abstract type AbstractGraph <: AbstractVector{Vector{Int}} end
@@ -18,10 +18,6 @@ struct Graph <: AbstractGraph
 		n >= 0 || error("expected positive number of indices")
 		new(fill(emptyindices, n))
 	end
-end
-
-struct FixedGraph <: AbstractGraph
-	G::Graph
 end
 
 struct GraphView{T<:AbstractVector{<:Integer}} <: AbstractGraph
@@ -46,17 +42,12 @@ end
 @inline GraphView(G::Graph, I::T) where {T<:AbstractVector{<:Integer}} =
 		GraphView{T}(G, I)
 
-@inline GraphView(G::FixedGraph, I::T) where {T<:AbstractVector{<:Integer}} =
-		GraphView{T}(G.G, I)
-
 @inline function GraphView(G::GraphView, I::AbstractVector{<:Integer})
 	@boundscheck checkindexseries(G, I)
 	@inbounds GraphView(G.G, G.I[I])
 end
 
 Base.size(G::Graph) = (length(G.neighbors),)
-
-Base.size(G::FixedGraph) = (length(G.G),)
 
 Base.size(G::GraphView) = (length(G.I),)
 
@@ -68,13 +59,9 @@ Base.IndexStyle(::Type{<:AbstractGraph}) = IndexLinear()
 
 Base.parent(G::Graph) = G
 
-Base.parent(G::FixedGraph) = parent(G.G)
-
 Base.parent(G::GraphView) = G.G
 
 Base.parentindices(G::Graph) = 1:length(G)
-
-Base.parentindices(G::FixedGraph) = parentindices(G.G)
 
 Base.parentindices(G::GraphView) = G.I
 
@@ -92,8 +79,6 @@ Base.view(G::Graph, I::AbstractVector{<:Integer}) = GraphView(G, copy(I))
 	j in G.neighbors[i]
 end
 
-@inline Base.in((i, j)::Tuple{Integer,Integer}, G::FixedGraph) = in((i, j), G.G)
-
 @inline function Base.in((i, j)::Tuple{Integer,Integer}, G::GraphView)
 	@boundscheck begin
 		checkbounds(G, i)
@@ -108,9 +93,6 @@ end
 	empty!(dest)
 	append!(dest, G.neighbors[i])
 end
-
-@inline neighbors!(dest::AbstractArray{<:Integer}, G::FixedGraph, i::Integer) =
-		neighbors!(dest, G.G, i)
 
 @inline function neighbors!(dest::AbstractArray{<:Integer}, G::GraphView,
 		i::Integer)
@@ -138,8 +120,6 @@ function Base.pairs(G::Graph)
 	end
 	pairs
 end
-
-Base.pairs(G::FixedGraph) = pairs(G.G)
 
 function Base.pairs(G::GraphView)
 	pairs = sizehint!(Tuple{Int,Int}[], length(G))
@@ -200,8 +180,6 @@ end
 	isempty(G.neighbors[i])
 end
 
-@inline isisolated(G::FixedGraph, i::Integer) = isisolated(G.G, i)
-
 @inline function isisolated(G::GraphView, i::Integer)
 	@boundscheck checkbounds(G, i)
 	@inbounds isisolated(G.G, G.I[i])
@@ -234,8 +212,6 @@ function pair!(G::Graph, pairs::Tuple{Integer,Integer}...)
 	end
 	G
 end
-
-pair!(G::FixedGraph, pairs::Tuple{Integer,Integer}...) = pair!(G.G, pairs...)
 
 function pair!(G::GraphView, pairs::Tuple{Integer,Integer}...)
 	@boundscheck begin
@@ -276,9 +252,6 @@ function unpair!(G::Graph, pairs::Tuple{Integer,Integer}...)
 	G
 end
 
-unpair!(G::FixedGraph, pairs::Tuple{Integer,Integer}...) =
-		unpair!(G.G, pairs...)
-
 function unpair!(G::GraphView, pairs::Tuple{Integer,Integer}...)
 	@boundscheck begin
 		for (i, j) in pairs
@@ -303,8 +276,6 @@ function isolate!(G::Graph, i::Integer)
 	G.neighbors[i] = emptyindices
 	G
 end
-
-@inline isolate!(G::FixedGraph, i::Integer) = isolate!(G.G, i)
 
 @inline function isolate!(G::GraphView, i::Integer)
 	@boundscheck checkbounds(G, i)
