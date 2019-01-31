@@ -372,7 +372,7 @@ superposition(R::AbstractVector{Vector3D}, Rref::AbstractVector{Vector3D},
 
 superposition(R::AbstractVector{Vector3D}, Rref::AbstractVector{Vector3D},
 		strategy::SuperposeByKabsch) =
-		superposition(R, Rref, Repeat(1.0, length(R)), strategy)
+		superposition(R, Rref, Repeated(1.0, length(R)), strategy)
 
 function superposition(R::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, W::AbstractVector{<:Real},
@@ -436,7 +436,7 @@ fitline(R::AbstractVector{Vector3D}, W::AbstractVector{<:Real}) =
 		fitline(R, W, FitBySVD())
 
 fitline(R::AbstractVector{Vector3D}, strategy::FitBySVD) =
-		fitline(R, Repeat(1.0, length(R)), strategy)
+		fitline(R, Repeated(1.0, length(R)), strategy)
 
 function fitline(R::AbstractVector{Vector3D}, W::AbstractVector{<:Real},
 		strategy::FitBySVD)
@@ -479,7 +479,7 @@ fitplane(R::AbstractVector{Vector3D}, W::AbstractVector{<:Real}) =
 		fitplane(R, W, FitBySVD())
 
 fitplane(R::AbstractVector{Vector3D}, strategy::FitBySVD) =
-		fitplane(R, Repeat(1.0, length(R)), strategy)
+		fitplane(R, Repeated(1.0, length(R)), strategy)
 
 function fitplane(R::AbstractVector{Vector3D}, W::AbstractVector{<:Real},
 		strategy::FitBySVD)

@@ -2,12 +2,9 @@
 
 module Utils
 
-using .Iterators: drop
-
 export
-		τ, emptyindices, checkindexseries, isindexseries, deleteat_map,
-		splice_map, subsetsequal, substrip, wraptext, ncols, nrows, FixedArray,
-		Repeat, OffsetVector, RangeIdentity
+		τ, emptyindices, checkindexseries, isindexseries, deleteatmap,
+		splicemap, subsetsequal, substrip, wraptext, ncols, nrows, Repeated
 
 const τ = 2π
 
@@ -24,17 +21,18 @@ function isindexseries(I::AbstractVector{<:Integer})
 	if isempty(I)
 		return true
 	end
-	vprev = first(I)
-	for v in drop(I, 1)
-		if ! (v > vprev)
+	lastv = I[1]
+	for i in 2:length(I)
+		v = I[i]
+		if ! (v > lastv)
 			return false
 		end
-		vprev = v
+		lastv = v
 	end
 	true
 end
 
-function deleteat_map(n::Integer, I::AbstractVector{<:Integer})
+function deleteatmap(n::Integer, I::AbstractVector{<:Integer})
 	map = collect(1:n)
 	for i in I
 		map[i] = 0
@@ -50,7 +48,7 @@ function deleteat_map(n::Integer, I::AbstractVector{<:Integer})
 	map
 end
 
-function splice_map(n::Integer, range::AbstractUnitRange{<:Integer},
+function splicemap(n::Integer, range::AbstractUnitRange{<:Integer},
 		nreplacement::Integer)
 	map = collect(1:n)
 	for i in range
@@ -108,76 +106,22 @@ ncols(M::AbstractMatrix) = size(M, 2)
 
 nrows(M::AbstractMatrix) = size(M, 1)
 
-struct FixedArray{T1,T2,N} <: AbstractArray{T2,N}
-	A::T1
-
-	FixedArray{T1,T2,N}(A::T1) where {T2,N,T1<:AbstractArray{T2,N}} = new(A)
-end
-
-FixedArray(A::AbstractArray{T}) where {T} = FixedArray{typeof(A),T,ndims(A)}(A)
-
-Base.size(A::FixedArray) = size(A.A)
-
-function Base.getindex(A::FixedArray, i::Int)
-	@boundscheck checkbounds(A, i)
-	@inbounds A.A[i]
-end
-
-function Base.setindex!(A::FixedArray, v, i::Int)
-	@boundscheck checkbounds(A, i)
-	@inbounds A.A[i] = v
-end
-
-Base.IndexStyle(::Type{<:FixedArray}) = IndexLinear()
-
-struct Repeat{T1,T2,N} <: AbstractArray{T1,N}
+struct Repeated{T1,T2,N} <: AbstractArray{T1,N}
 	val::T1
 	size::T2
 
-	Repeat{T1,T2,N}(val::T1, size::T2) where {T1,T2,N} = new(val, size)
+	Repeated{T1,T2,N}(val::T1, size::T2) where {T1,T2,N} = new(val, size)
 end
 
-Repeat(val::T1, size::T2) where {T1,T2} =
-		Repeat{T1,T2,length(size)}(val, size)
+Repeated(val::T1, size::T2) where {T1,T2} =
+		Repeated{T1,T2,length(size)}(val, size)
 
-Repeat(val::T1, n::Integer) where {T1} = Repeat(val, (n,))
+Repeated(val::T1, n::Integer) where {T1} = Repeated(val, (n,))
 
-Base.size(A::Repeat) = A.size
+Base.size(A::Repeated) = A.size
 
-Base.getindex(A::Repeat, i::Int) = A.val
+Base.getindex(A::Repeated, i::Int) = A.val
 
-Base.IndexStyle(::Type{<:Repeat}) = IndexLinear()
-
-struct OffsetVector{T1,T2<:AbstractVector{<:T1}} <: AbstractVector{T1}
-	V::T2
-	d::Int
-
-	OffsetVector{T1,T2}(V::T2, d::Integer) where {T1,T2<:AbstractVector{<:T1}} =
-			new(V, d)
-end
-
-OffsetVector(V::T, d::Integer) where {T<:AbstractVector} =
-		OffsetVector{eltype(T),T}(V,d)
-
-Base.size(V::OffsetVector) = size(V.V)
-
-Base.getindex(V::OffsetVector, i::Int) = getindex(V.V, i)
-
-Base.setindex!(V::OffsetVector{T1,T2}, v::T1, i::Int) where
-		{T1,T2<:AbstractVector{<:T1}} = setindex!(V, v, i)
-
-Base.IndexStyle(::Type{<:OffsetVector}) = IndexLinear()
-
-struct RangeIdentity <: AbstractVector{UnitRange{Int}}
-	n::Int
-
-	RangeIdentity(n::Integer) = new(n)
-end
-
-Base.size(V::RangeIdentity) = (V.n,)
-
-Base.getindex(V::RangeIdentity, i::Integer) = i:i
-
-Base.IndexStyle(::Type{<:RangeIdentity}) = IndexLinear()
+Base.IndexStyle(::Type{<:Repeated}) = IndexLinear()
 
 end # module

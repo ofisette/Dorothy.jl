@@ -30,7 +30,7 @@ function inferss!(SS::AbstractVector{<:AbstractString},
 			error("size mismatch between model and output array")
 	I = findall(map(Protein, model))
 	protein = view(model, I)
-	chainids = get(protein, :chainids, Repeat("", length(protein)))
+	chainids = get(protein, :chainids, Repeated("", length(protein)))
 	residues = mcrp(protein).flath2.tree
 	stride!(view(SS, I), protein.names, protein.resids, protein.resnames,
 			chainids, protein.R, residues, strategy.stridepath)
@@ -51,8 +51,8 @@ function stride!(SS::AbstractVector{<:AbstractString},
 	striderecords = Tuple{Int,String,String}[]
 	mktemp() do pdbpath, io
 		writepdb(io, nothing, nothing, 1:n, names, resids, resnames, chainids,
-				R, Repeat(1.0, n), Repeat(0.0, n), Repeat("", n), nothing, true,
-				Ref(0))
+				R, Repeated(1.0, n), Repeated(0.0, n), Repeated("", n),
+				nothing, true, Ref(0))
 		close(io)
 		prevss = ""
 		for line in readlines(open(`$(stridepath) $(pdbpath)`))

@@ -720,7 +720,7 @@ module Selectors
 			Dorothy.stringpredicate(X...))
 
 	ChainId(X...) = Dorothy.PropertySelector((model, cache) ->
-			get(model, :chainids, Repeat("", length(model))),
+			get(model, :chainids, Repeated("", length(model))),
 			Dorothy.stringpredicate(X...))
 
 	function Element(X...)

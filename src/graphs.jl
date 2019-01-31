@@ -377,7 +377,7 @@ Base.deleteat!(G::Graph, i::Integer) = deleteat!(G, [i])
 
 @inline function Base.deleteat!(G::Graph, I::AbstractArray{<:Integer})
 	@boundscheck checkindexseries(G, I)
-	remap!(G, deleteat_map(length(G), I))
+	remap!(G, deleteatmap(length(G), I))
 	deleteat!(G.neighbors, I)
 	G
 end
@@ -401,7 +401,7 @@ function Base.splice!(G::Graph, range::UnitRange{<:Integer},
 	if nreplacement == 0
 		@inbounds deleteat!(G, range)
 	else
-		remap!(G, splice_map(length(G), range, nreplacement))
+		remap!(G, splicemap(length(G), range, nreplacement))
 		splice!(G.neighbors, range, repeated(emptyindices, nreplacement))
 		offset = first(range) - 1
 		for (i, j) in pairs(replacement)

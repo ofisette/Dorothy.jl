@@ -160,10 +160,10 @@ function writepdb(io::IO, model::ParticleCollection;
 	writepdb(io, get(model.header, :title, nothing),
 			get(model.header, :cell, nothing), get(model, :ids, 1:n),
 			model.names, model.resids, model.resnames,
-			get(model, :chainids, Repeat("", n)), model.R,
-			get(model, :occupancies, Repeat(1.0, n)),
-			get(model, :bfactors, Repeat(0.0, n)),
-			get(model, :elements, Repeat("", n)), modelid,
+			get(model, :chainids, Repeated("", n)), model.R,
+			get(model, :occupancies, Repeated(1.0, n)),
+			get(model, :bfactors, Repeated(0.0, n)),
+			get(model, :elements, Repeated("", n)), modelid,
 			endrecord, lnoffset)
 end
 

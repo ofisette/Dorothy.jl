@@ -188,8 +188,8 @@ Multicollections.collitemname(::MolecularModel) = "particle"
 
 function mcrptree(model::ParticleCollection)
 	n = length(model)
-	chainids = get(model, :chainids, Repeat("", n))
-	resids = get(model, :resids, Repeat(0, n))
+	chainids = get(model, :chainids, Repeated("", n))
+	resids = get(model, :resids, Repeated(0, n))
 	mcrptree(chainids, resids)
 end
 
@@ -306,7 +306,7 @@ end
 
 function chainat(model::ParticleCollection, i::Integer)
 	@boundscheck checkbounds(model, i)
-	chainids = get(model, :chainids, Repeat("", length(model)))
+	chainids = get(model, :chainids, Repeated("", length(model)))
 	view(model, chainat(chainids, i))
 end
 
@@ -330,8 +330,8 @@ end
 function residueat(model::ParticleCollection, i::Integer)
 	@boundscheck checkbounds(model, i)
 	n = length(model)
-	chainids = get(model, :chainids, Repeat("", n))
-	resids = get(model, :resids, Repeat(0, n))
+	chainids = get(model, :chainids, Repeated("", n))
+	resids = get(model, :resids, Repeated(0, n))
 	view(model, residueat(chainids, resids, i))
 end
 
