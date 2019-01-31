@@ -237,18 +237,18 @@ datapath = joinpath(@__DIR__, "..", "data")
 
 	end
 
-	@testset "Group splits" begin
+	@testset "Hierarchies" begin
 
-		@testset "Chain" begin
+		@testset "Chains" begin
 			m1 = MolecularModel(10)
 			m1.chainids =
 					[fill("A", 3)..., fill("B", 2)..., fill("C", 4)..., "D"]
-			h = hierarchy(m1)
-			@test [length(chain) for chain in h.chains] == [3,2,4,1]
-			@test parentindices(h.chains[1]) == 1:3
-			@test parentindices(h.chains[2]) == 4:5
-			@test parentindices(h.chains[3]) == 6:9
-			@test parentindices(h.chains[4]) == 10:10
+			chainiter = chains(m1)
+			@test [length(chain) for chain in chainiter] == [3,2,4,1]
+			@test parentindices(chainiter[1]) == 1:3
+			@test parentindices(chainiter[2]) == 4:5
+			@test parentindices(chainiter[3]) == 6:9
+			@test parentindices(chainiter[4]) == 10:10
 			@test chainat(m1, 1) == view(m1, 1:3)
 			@test chainat(m1, 2) == view(m1, 1:3)
 			@test chainat(m1, 3) == view(m1, 1:3)
@@ -261,20 +261,20 @@ datapath = joinpath(@__DIR__, "..", "data")
 			@test chainat(m1, 10) == view(m1, 10:10)
 		end
 
-		@testset "Residue" begin
+		@testset "Residues" begin
 			m1 = MolecularModel(20)
 			m1.resids = [1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5]
 			m1.resnames = fill("WAT", 20)
-			@test [length(res) for res in eachresidue(m1)] == [4,4,4,4,4]
+			@test [length(res) for res in residues(m1)] == [4,4,4,4,4]
 			m1.chainids = [fill("A", 10)..., fill("B", 10)...]
-			h = hierarchy(m1)
-			@test [length(res) for res in h.residues] == [4,4,2,2,4,4]
-			@test parentindices(h.residues[1]) == 1:4
-			@test parentindices(h.residues[2]) == 5:8
-			@test parentindices(h.residues[3]) == 9:10
-			@test parentindices(h.residues[4]) == 11:12
-			@test parentindices(h.residues[5]) == 13:16
-			@test parentindices(h.residues[6]) == 17:20
+			resiter = residues(m1)
+			@test [length(res) for res in resiter] == [4,4,2,2,4,4]
+			@test parentindices(resiter[1]) == 1:4
+			@test parentindices(resiter[2]) == 5:8
+			@test parentindices(resiter[3]) == 9:10
+			@test parentindices(resiter[4]) == 11:12
+			@test parentindices(resiter[5]) == 13:16
+			@test parentindices(resiter[6]) == 17:20
 			@test residueat(m1, 1) == view(m1, 1:4)
 			@test residueat(m1, 2) == view(m1, 1:4)
 			@test residueat(m1, 3) == view(m1, 1:4)
@@ -287,16 +287,16 @@ datapath = joinpath(@__DIR__, "..", "data")
 			@test residueat(m1, 20) == view(m1, 17:20)
 		end
 
-		@testset "Fragment" begin
+		@testset "Fragments" begin
 			m1 = MolecularModel(10)
 			m1.topology = []
 			pair!(m1.topology, (1, 2), (2, 3), (4, 5), (4, 6), (4, 7), (4, 8))
-			frags = eachfragment(m1)
-			@test [length(frag) for frag in frags] == [3,5,1,1]
-			@test parentindices(frags[1]) == 1:3
-			@test parentindices(frags[2]) == 4:8
-			@test parentindices(frags[3]) == 9:9
-			@test parentindices(frags[4]) == 10:10
+			fragiter = fragments(m1)
+			@test [length(frag) for frag in fragiter] == [3,5,1,1]
+			@test parentindices(fragiter[1]) == 1:3
+			@test parentindices(fragiter[2]) == 4:8
+			@test parentindices(fragiter[3]) == 9:9
+			@test parentindices(fragiter[4]) == 10:10
 			@test fragmentat(m1, 1) == view(m1, 1:3)
 			@test fragmentat(m1, 2) == view(m1, 1:3)
 			@test fragmentat(m1, 3) == view(m1, 1:3)

@@ -7,7 +7,7 @@ using .Iterators: drop
 export
 		τ, emptyindices, checkindexseries, isindexseries, deleteat_map,
 		splice_map, subsetsequal, substrip, wraptext, ncols, nrows, FixedArray,
-		Repeat, SingleScalarVector, SelfVector, RangeVector
+		Repeat, OffsetVector, RangeIdentity
 
 const τ = 2π
 
@@ -50,7 +50,7 @@ function deleteat_map(n::Integer, I::AbstractVector{<:Integer})
 	map
 end
 
-function splice_map(n::Integer, range::UnitRange{<:Integer},
+function splice_map(n::Integer, range::AbstractUnitRange{<:Integer},
 		nreplacement::Integer)
 	map = collect(1:n)
 	for i in range
@@ -146,66 +146,38 @@ Base.size(A::Repeat) = A.size
 
 Base.getindex(A::Repeat, i::Int) = A.val
 
-Base.setindex!(A::Repeat, v, i::Int) = (A.val = v)
-
 Base.IndexStyle(::Type{<:Repeat}) = IndexLinear()
 
-struct SingleScalarVector{T} <: AbstractVector{T}
-	val::T
+struct OffsetVector{T1,T2<:AbstractVector{<:T1}} <: AbstractVector{T1}
+	V::T2
+	d::Int
 
-	SingleScalarVector{T}(val::T) where {T} = new(val)
+	OffsetVector{T1,T2}(V::T2, d::Integer) where {T1,T2<:AbstractVector{<:T1}} =
+			new(V, d)
 end
 
-SingleScalarVector(val::T) where {T} = SingleScalarVector{T}(val)
+OffsetVector(V::T, d::Integer) where {T<:AbstractVector} =
+		OffsetVector{eltype(T),T}(V,d)
 
-Base.size(V::SingleScalarVector) = (1,)
+Base.size(V::OffsetVector) = size(V.V)
 
-Base.getindex(V::SingleScalarVector, i::Int) = V.val
+Base.getindex(V::OffsetVector, i::Int) = getindex(V.V, i)
 
-Base.setindex!(V::SingleScalarVector, v, i::Int) = (V.val = v)
+Base.setindex!(V::OffsetVector{T1,T2}, v::T1, i::Int) where
+		{T1,T2<:AbstractVector{<:T1}} = setindex!(V, v, i)
 
-Base.IndexStyle(::Type{<:SingleScalarVector}) = IndexLinear()
+Base.IndexStyle(::Type{<:OffsetVector}) = IndexLinear()
 
-struct SelfVector <: AbstractVector{SingleScalarVector{Int}}
+struct RangeIdentity <: AbstractVector{UnitRange{Int}}
 	n::Int
 
-	SelfVector(n::Integer) = new(n)
+	RangeIdentity(n::Integer) = new(n)
 end
 
-Base.size(V::SelfVector) = (V.n,)
+Base.size(V::RangeIdentity) = (V.n,)
 
-Base.getindex(V::SelfVector, i::Int) = SingleScalarVector(i)
+Base.getindex(V::RangeIdentity, i::Integer) = i:i
 
-Base.IndexStyle(::Type{<:SelfVector}) = IndexLinear()
-
-struct RangeVector{T<:Integer} <: AbstractVector{T}
-	ranges::Vector{UnitRange{T}}
-	n::Int
-
-	function RangeVector{T}(ranges::Vector{UnitRange{T}}) where {T<:Integer}
-		@boundscheck !isempty(ranges) || error("expected at least one range")
-		new(ranges, sum(length.(ranges)))
-	end
-end
-
-RangeVector(ranges::Vector{UnitRange{T}}) where {T<:Integer} =
-		RangeVector{T}(ranges)
-
-Base.size(V::RangeVector) = (V.n,)
-
-function Base.getindex(V::RangeVector, i::Integer)
-	@boundscheck checkbounds(V, i)
-	offset = 0
-	for r in V.ranges
-		n = length(r)
-		if i > n + offset
-			offset += n
-		else
-			return r[i-offset]
-		end
-	end
-end
-
-Base.IndexStyle(::Type{<:RangeVector}) = IndexLinear()
+Base.IndexStyle(::Type{<:RangeIdentity}) = IndexLinear()
 
 end # module

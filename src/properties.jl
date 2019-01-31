@@ -1,231 +1,4 @@
-# Properties of particles in molecular models
-
-function wrapid(id::Integer, max::Integer)
-	while id > max
-		id -= max + 1
-	end
-	id
-end
-
-function unwrapids!(ids::AbstractVector{<:Integer}, max::Integer)
-	offset = 0
-	atzero = false
-	for i in eachindex(ids)
-		if ids[i] == 0
-			if ! atzero
-				offset += max + 1
-			end
-			atzero = true
-		else
-			atzero = false
-		end
-		ids[i] += offset
-	end
-	ids
-end
-
-function unwrapnames!(names::AbstractVector{<:AbstractString})
-	for i in eachindex(names)
-		name = names[i]
-		if length(name) > 0 && isdigit(first(name))
-			names[i] = chop(name, head=1, tail=0) * first(name)
-		end
-	end
-	names
-end
-
-function namematcher(pattern::AbstractString)
-	Istar = findall(==('*'), pattern)
-	nstars = length(Istar)
-	if nstars == 0
-		==(pattern)
-	elseif nstars == 1
-		if length(pattern) == 1
-			name -> true
-		else
-			if Istar[1] == 1
-				suffix = chop(pattern, head=1, tail=0)
-				name -> endswith(name, suffix)
-			elseif Istar[1] == length(pattern)
-				prefix = chop(pattern)
-				name -> startswith(name, prefix)
-			else
-				error("wildcard * may only appear at start or end")
-			end
-		end
-	elseif nstars == 2
-		if Istar[1] != 1 || Istar[2] != length(pattern)
-			error("wildcard * may only appear at start or end")
-		else
-			name -> occursin(name, pattern)
-		end
-	else
-		error("wildcard * may only appear at start or end")
-	end
-end
-
-function namematcher(s0::AbstractString, S::AbstractString...)
-	F = [namematcher(s) for s in [s0, S...]]
-	function (name)
-		for f in F
-			if f(name)
-				return true
-			end
-		end
-		false
-	end
-end
-
-const hydrogen_name_pattern = "H*"
-
-const vsite_name_pattern = ["MC*", "MN*", "MTRP*", "MW", "LP"]
-
-const water_resname_pattern = ["HOH", "SOL", "TIP*", "WAT*"]
-
-const acid_protein_resname_pattern = ["ASP", "GLU"]
-
-const basic_protein_resname_pattern = ["ARG", "LYS"]
-
-const charged_protein_resname_pattern =
-		[acid_protein_resname_pattern..., basic_protein_resname_pattern...]
-
-const polar_protein_resname_pattern =
-		["ASN", "CYS", "GLN", "HIS", "SER", "THR", "TRP", "TYR"]
-
-const hydrophobic_protein_resname_pattern =
-		["ALA", "GLY", "ILE", "LEU", "MET", "PHE", "PRO", "VAL"]
-
-const protein_resname_pattern =
-		[charged_protein_resname_pattern...,
-		 polar_protein_resname_pattern...,
-		 hydrophobic_protein_resname_pattern...]
-
-# J.L. King, T.H. Jukes. Science, 164(3881):788-98, 1969.
-# doi:10.1126/science.164.3881.788
-const vertebrate_aa_frequencies = Dict(
-		"ALA" => 0.74,
-		"ARG" => 0.42,
-		"ASN" => 0.44,
-		"ASP" => 0.59,
-		"CYS" => 0.33,
-		"GLU" => 0.58,
-		"GLN" => 0.37,
-		"GLY" => 0.74,
-		"HIS" => 0.29,
-		"ILE" => 0.38,
-		"LEU" => 0.76,
-		"LYS" => 0.72,
-		"MET" => 0.18,
-		"PHE" => 0.40,
-		"PRO" => 0.50,
-		"SER" => 0.81,
-		"THR" => 0.62,
-		"TRP" => 0.13,
-		"TYR" => 0.33,
-		"VAL" => 0.68)
-
-const mainchain_name_pattern = ["N", "H", "CA", "C", "O", "OC1", "OC2", "OXT"]
-
-const backbone_name_pattern = ["N", "CA", "C"]
-
-const nuclacid_resname_pattern = ["A", "C", "G", "U", "DA", "DC", "DG", "DT"]
-
-const lipid_resname_pattern = ["D3PC", "DLPC", "DLPE", "DLPG", "DMPA", "DMPC",
-		"DMPG", "DOPC", "DOPE", "DOPG", "DOPS", "DPPC", "DPPE", "DPPG", "DPPS",
-		"DSPG", "POPC", "POPE", "POPG", "POPS"]
-
-const monatomic_ion_resname_pattern = ["NA", "CL", "CA", "MG", "K", "RB", "CS",
-		"LI", "ZN", "H", "SR", "BA", "AL", "AG", "FE", "CU", "F", "BR", "I",
-		"O", "S", "N", "P"]
-
-const polyatomic_ion_resname_pattern =
-		["CN", "CO3", "NO2", "NO3", "O2", "OH", "PO3", "PO4", "SO3", "SO4"]
-
-const ion_resname_pattern =
-		[monatomic_ion_resname_pattern..., polyatomic_ion_resname_pattern...]
-
-const alphahelix_ss_pattern = "H"
-const helix310_ss_pattern = "G"
-const pihelix_ss_pattern = "I"
-const turn_ss_pattern = "T"
-const strand_ss_pattern = "E"
-const bridge_ss_pattern = "B"
-const coil_ss_pattern = "C"
-const bend_ss_pattern = "S"
-
-const helix_ss_pattern = [alphahelix_ss_pattern, helix310_ss_pattern,
-		pihelix_ss_pattern, turn_ss_pattern]
-const sheet_ss_pattern = [strand_ss_pattern, bridge_ss_pattern]
-const loop_ss_pattern = [coil_ss_pattern, bend_ss_pattern]
-
-const ishydrogen = namematcher(hydrogen_name_pattern)
-
-isheavy(name) = !ishydrogen(name)
-
-const isvsite = namematcher(vsite_name_pattern...)
-
-const iswater = namematcher(water_resname_pattern...)
-
-const isprotein = namematcher(sort(protein_resname_pattern,
-		by=(resname -> vertebrate_aa_frequencies[resname]))...)
-
-const isacidresidue = namematcher(sort(acid_protein_resname_pattern,
-		by=(resname -> vertebrate_aa_frequencies[resname]))...)
-
-const isbasicresidue = namematcher(sort(basic_protein_resname_pattern,
-		by=(resname -> vertebrate_aa_frequencies[resname]))...)
-
-const ischargedresidue = namematcher(sort(charged_protein_resname_pattern,
-		by=(resname -> vertebrate_aa_frequencies[resname]))...)
-
-const ispolarresidue = namematcher(sort(polar_protein_resname_pattern,
-		by=(resname -> vertebrate_aa_frequencies[resname]))...)
-
-const ishydrophobicresidue =
-		namematcher(sort(hydrophobic_protein_resname_pattern,
-		by=(resname -> vertebrate_aa_frequencies[resname]))...)
-
-const ismainchainname = namematcher(mainchain_name_pattern...)
-
-ismainchain(name, resname) = ismainchainname(name) && isprotein(resname)
-
-issidechain(name, resname) = !ismainchainname(name) && isprotein(resname)
-
-const isbackbonename = namematcher(backbone_name_pattern...)
-
-isbackbone(name, resname) = isbackbonename(name) && isprotein(resname)
-
-const isnuclacid = namematcher(nuclacid_resname_pattern...)
-
-const islipid = namematcher(lipid_resname_pattern...)
-
-const ision = namematcher(ion_resname_pattern...)
-
-const ismonatomicion = namematcher(monatomic_ion_resname_pattern...)
-
-const ispolyatomicion = namematcher(polyatomic_ion_resname_pattern...)
-
-const ishelix = namematcher(helix_ss_pattern...)
-
-const isalphahelix = namematcher(alphahelix_ss_pattern)
-
-const ishelix310 = namematcher(helix310_ss_pattern)
-
-const ispihelix = namematcher(pihelix_ss_pattern)
-
-const isturn = namematcher(turn_ss_pattern)
-
-const issheet = namematcher(sheet_ss_pattern...)
-
-const isstrand = namematcher(strand_ss_pattern)
-
-const isbridge = namematcher(bridge_ss_pattern)
-
-const isloop = namematcher(loop_ss_pattern...)
-
-const iscoil = namematcher(coil_ss_pattern)
-
-const isbend = namematcher(bend_ss_pattern)
+# Properties and constants related to molecular models
 
 # J. Meija et al. Pure Appl. Chem., 88(3):265-91, 2016.
 # doi:10.1515/pac-2015-0305
@@ -413,3 +186,296 @@ const covalent_radii = Dict(
 	"Pu" => 1.87,
 	"Am" => 1.80,
 	"Cm" => 1.69)
+
+# J.L. King, T.H. Jukes. Science, 164(3881):788-98, 1969.
+# doi:10.1126/science.164.3881.788
+const vertebrate_aa_frequencies = Dict(
+		"ALA" => 0.74,
+		"ARG" => 0.42,
+		"ASN" => 0.44,
+		"ASP" => 0.59,
+		"CYS" => 0.33,
+		"GLU" => 0.58,
+		"GLN" => 0.37,
+		"GLY" => 0.74,
+		"HIS" => 0.29,
+		"ILE" => 0.38,
+		"LEU" => 0.76,
+		"LYS" => 0.72,
+		"MET" => 0.18,
+		"PHE" => 0.40,
+		"PRO" => 0.50,
+		"SER" => 0.81,
+		"THR" => 0.62,
+		"TRP" => 0.13,
+		"TYR" => 0.33,
+		"VAL" => 0.68)
+
+function wrapid(id::Integer, max::Integer)
+	while id > max
+		id -= max + 1
+	end
+	id
+end
+
+function unwrapids!(ids::AbstractVector{<:Integer}, max::Integer)
+	offset = 0
+	atzero = false
+	for i in eachindex(ids)
+		if ids[i] == 0
+			if ! atzero
+				offset += max + 1
+			end
+			atzero = true
+		else
+			atzero = false
+		end
+		ids[i] += offset
+	end
+	ids
+end
+
+function unwrapnames!(names::AbstractVector{<:AbstractString})
+	for i in eachindex(names)
+		name = names[i]
+		if length(name) > 0 && isdigit(first(name))
+			names[i] = chop(name, head=1, tail=0) * first(name)
+		end
+	end
+	names
+end
+
+function namematcher(pattern::AbstractString)
+	Istar = findall(==('*'), pattern)
+	nstars = length(Istar)
+	if nstars == 0
+		==(pattern)
+	elseif nstars == 1
+		if length(pattern) == 1
+			name -> true
+		else
+			if Istar[1] == 1
+				suffix = chop(pattern, head=1, tail=0)
+				name -> endswith(name, suffix)
+			elseif Istar[1] == length(pattern)
+				prefix = chop(pattern)
+				name -> startswith(name, prefix)
+			else
+				error("wildcard * may only appear at start or end")
+			end
+		end
+	elseif nstars == 2
+		if Istar[1] != 1 || Istar[2] != length(pattern)
+			error("wildcard * may only appear at start or end")
+		else
+			name -> occursin(name, pattern)
+		end
+	else
+		error("wildcard * may only appear at start or end")
+	end
+end
+
+function namematcher(S::AbstractVector{<:AbstractString})
+	F = [namematcher(s) for s in S]
+	function (name)
+		for f in F
+			if f(name)
+				return true
+			end
+		end
+		false
+	end
+end
+
+const hydrogen_name_pattern = "H*"
+
+const vsite_name_pattern = ["MC*", "MN*", "MTRP*", "MW", "LP"]
+
+const water_resname_pattern = ["HOH", "SOL", "TIP*", "WAT*"]
+
+const acid_protein_resname_pattern = ["ASP", "GLU"]
+
+const basic_protein_resname_pattern = ["ARG", "LYS"]
+
+const charged_protein_resname_pattern =
+		[acid_protein_resname_pattern..., basic_protein_resname_pattern...]
+
+const polar_protein_resname_pattern =
+		["ASN", "CYS", "GLN", "HIS", "SER", "THR", "TRP", "TYR"]
+
+const hydrophobic_protein_resname_pattern =
+		["ALA", "GLY", "ILE", "LEU", "MET", "PHE", "PRO", "VAL"]
+
+const protein_resname_pattern =
+		[charged_protein_resname_pattern...,
+		 polar_protein_resname_pattern...,
+		 hydrophobic_protein_resname_pattern...]
+
+const mainchain_name_pattern = ["N", "H", "CA", "C", "O", "OC1", "OC2", "OXT"]
+
+const backbone_name_pattern = ["N", "CA", "C"]
+
+const nuclacid_resname_pattern = ["A", "C", "G", "U", "DA", "DC", "DG", "DT"]
+
+const lipid_resname_pattern = ["D3PC", "DLPC", "DLPE", "DLPG", "DMPA", "DMPC",
+		"DMPG", "DOPC", "DOPE", "DOPG", "DOPS", "DPPC", "DPPE", "DPPG", "DPPS",
+		"DSPG", "POPC", "POPE", "POPG", "POPS"]
+
+const monatomic_ion_resname_pattern = ["NA", "CL", "CA", "MG", "K", "RB", "CS",
+		"LI", "ZN", "H", "SR", "BA", "AL", "AG", "FE", "CU", "F", "BR", "I",
+		"O", "S", "N", "P"]
+
+const polyatomic_ion_resname_pattern =
+		["CN", "CO3", "NO2", "NO3", "O2", "OH", "PO3", "PO4", "SO3", "SO4"]
+
+const ion_resname_pattern =
+		[monatomic_ion_resname_pattern..., polyatomic_ion_resname_pattern...]
+
+const alphahelix_ss_pattern = "H"
+const helix310_ss_pattern = "G"
+const pihelix_ss_pattern = "I"
+const turn_ss_pattern = "T"
+const strand_ss_pattern = "E"
+const bridge_ss_pattern = "B"
+const coil_ss_pattern = "C"
+const bend_ss_pattern = "S"
+
+const helix_ss_pattern = [alphahelix_ss_pattern, helix310_ss_pattern,
+		pihelix_ss_pattern, turn_ss_pattern]
+const sheet_ss_pattern = [strand_ss_pattern, bridge_ss_pattern]
+const loop_ss_pattern = [coil_ss_pattern, bend_ss_pattern]
+
+const ishydrogen = namematcher(hydrogen_name_pattern)
+
+isheavy(name) = !ishydrogen(name)
+
+const isvsite = namematcher(vsite_name_pattern)
+
+const iswater = namematcher(water_resname_pattern)
+
+const isprotein = namematcher(sort(protein_resname_pattern,
+		by=(resname -> vertebrate_aa_frequencies[resname])))
+
+const isacidresidue = namematcher(sort(acid_protein_resname_pattern,
+		by=(resname -> vertebrate_aa_frequencies[resname])))
+
+const isbasicresidue = namematcher(sort(basic_protein_resname_pattern,
+		by=(resname -> vertebrate_aa_frequencies[resname])))
+
+const ischargedresidue = namematcher(sort(charged_protein_resname_pattern,
+		by=(resname -> vertebrate_aa_frequencies[resname])))
+
+const ispolarresidue = namematcher(sort(polar_protein_resname_pattern,
+		by=(resname -> vertebrate_aa_frequencies[resname])))
+
+const ishydrophobicresidue =
+		namematcher(sort(hydrophobic_protein_resname_pattern,
+		by=(resname -> vertebrate_aa_frequencies[resname])))
+
+const ismainchainname = namematcher(mainchain_name_pattern)
+
+ismainchain(name, resname) = ismainchainname(name) && isprotein(resname)
+
+issidechain(name, resname) = !ismainchainname(name) && isprotein(resname)
+
+const isbackbonename = namematcher(backbone_name_pattern)
+
+isbackbone(name, resname) = isbackbonename(name) && isprotein(resname)
+
+const isnuclacid = namematcher(nuclacid_resname_pattern)
+
+const islipid = namematcher(lipid_resname_pattern)
+
+const ision = namematcher(ion_resname_pattern)
+
+const ismonatomicion = namematcher(monatomic_ion_resname_pattern)
+
+const ispolyatomicion = namematcher(polyatomic_ion_resname_pattern)
+
+const ishelix = namematcher(helix_ss_pattern)
+
+const isalphahelix = namematcher(alphahelix_ss_pattern)
+
+const ishelix310 = namematcher(helix310_ss_pattern)
+
+const ispihelix = namematcher(pihelix_ss_pattern)
+
+const isturn = namematcher(turn_ss_pattern)
+
+const issheet = namematcher(sheet_ss_pattern)
+
+const isstrand = namematcher(strand_ss_pattern)
+
+const isbridge = namematcher(bridge_ss_pattern)
+
+const isloop = namematcher(loop_ss_pattern)
+
+const iscoil = namematcher(coil_ss_pattern)
+
+const isbend = namematcher(bend_ss_pattern)
+
+function guesselement(name::AbstractString, resname::AbstractString)
+	if ismonatomicion(resname)
+		titlecase(resname)
+	elseif isempty(name)
+		error("could not guess element from name or resname")
+	else
+		name[1:1]
+	end
+end
+
+guesselements!(model::ParticleCollection) =
+		guesselements!(get!(model, :elements, undef), model)
+
+function guesselements!(elements::AbstractVector{<:AbstractString},
+		model::ParticleCollection)
+	@boundscheck length(elements) == length(model) ||
+			error("size mismatch between model and output array")
+	guesselements!(elements, model.names, model.resnames)
+end
+
+function guesselements!(elements::AbstractVector{<:AbstractString},
+		names::AbstractVector{<:AbstractString},
+		resnames::AbstractVector{<:AbstractString})
+	@boundscheck begin
+		length(elements) == length(names) == length(resnames) ||
+				error("size mismatch between property arrays")
+	end
+	for i in eachindex(elements)
+		elements[i] = guesselement(names[i], resnames[i])
+	end
+	elements
+end
+
+function guessmass(name::AbstractString, element::AbstractString)
+	get(standard_atomic_weights, element) do
+		if isvsite(name)
+			0.0
+		else
+			error("could not guess mass from name or element")
+		end
+	end
+end
+
+guessmasses!(model::ParticleCollection) =
+		guessmasses!(get!(model, :masses, undef), model)
+
+function guessmasses!(masses::AbstractVector{<:Real}, model::ParticleCollection)
+	@boundscheck length(masses) == length(model) ||
+			error("size mismatch between model and output array")
+	guessmasses!(masses, model.names,
+			get(model, :elements, guesselements!(model)))
+end
+
+function guessmasses!(masses::AbstractVector{<:Real},
+		names::AbstractVector{<:AbstractString},
+		elements::AbstractVector{<:AbstractString})
+	@boundscheck begin
+		length(masses) == length(names) == length(elements) ||
+				error("size mismatch between property arrays")
+	end
+	for i in eachindex(masses)
+		masses[i] = guessmass(names[i], elements[i])
+	end
+	masses
+end

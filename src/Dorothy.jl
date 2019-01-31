@@ -12,8 +12,10 @@ export
 		MolecularModelHeader, MolecularModel, MolecularModelView,
 		ParticleCollection, Particle, MolecularTrajectory,
 
-		hierarchy, eachchain, eachresidue, eachlocalresidue, eachfragment,
+		mcrptree, mcrp, chains, residues, mfptree, mfp, fragments,
 		chainat, residueat, fragmentat,
+
+		standard_atomic_weights, covalent_radii, vertebrate_aa_frequencies,
 
 		wrapid, unwrapids!, unwrapnames!,
 
@@ -24,9 +26,9 @@ export
 		ishelix310, ispihelix, isturn, isstrand, isbridge, iscoil, isbend,
 		ishelix, issheet, isloop,
 
-		guesselements!, guessmasses!, guessss!, guesstopology!,
+		guesselement, guesselements!, guessmass, guessmasses!,
 
-		SelectionCache, emptyframe!, SelectBy, Selector, pick, Selectors,
+		SelectionCache, emptyframe!, SelectionMode, Selector, Selectors,
 
 		DorothyIO
 
@@ -46,7 +48,6 @@ using .Multicollections
 
 include("models.jl")
 include("properties.jl")
-include("guessing.jl")
 include("selection.jl")
 
 struct DorothyIO <: Formats.FormatHandler end
@@ -63,6 +64,9 @@ using .PDB
 using .TRR
 using .XTC
 using .NDX
+
+include("ss.jl")
+include("topology.jl")
 
 function __init__()
 	register_gromos87()

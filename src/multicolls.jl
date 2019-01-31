@@ -1,4 +1,4 @@
-# Type for collections of arrays with restricted choice of keys and value types
+# Types for collections of arrays with restricted choice of keys and value types
 
 module Multicollections
 
@@ -8,7 +8,8 @@ using ..Dorothy.Graphs
 export
 		AbstractMulticollection, Multicollection, MulticollectionView,
 		MulticollectionItem, collval, itemtocollprop, colltoitemprop,
-		collitemname, MulticollectionSplit, eachitem, asawhole
+		collitemname, treepaths, H2Hierarchy, H2Iterator, flattenh1, flattenh2,
+		H3Hierarchy, H3IteratorH2, H3IteratorH1
 
 abstract type AbstractMulticollection end
 
@@ -213,6 +214,11 @@ Base.view(C::MulticollectionView, I::AbstractVector{<:Integer}) =
 
 Base.view(C::AbstractMulticollection, i::Integer) = MulticollectionView(C, [i])
 
+@inline function Base.getindex(C::AbstractMulticollection)
+	@boundscheck length(C) != 1 && throw(BoundsError(C, []))
+	@inbounds C[1]
+end
+
 @inline Base.getindex(C::AbstractMulticollection, i::Integer) =
 		MulticollectionItem(C, i)
 
@@ -414,68 +420,224 @@ collitemname(::Multicollection) = "item"
 
 @inline colltoitemprop(::MulticollectionItem, ::Val{name}) where name = name
 
-struct MulticollectionSplit{T1<:AbstractMulticollection,
-		T2<:AbstractVector{<:AbstractVector{<:Integer}},
-		T3<:AbstractVector{<:Integer}}
-	C::T1
-	Igroup2items::T2
-	Iitem2group::T3
-
-	MulticollectionSplit{T1,T2,T3}(C::T1, Igroup2items::T2,
-			Iitem2group::T3) where {T1<:AbstractMulticollection,
-			T2<:AbstractVector{<:AbstractVector{<:Integer}},
-			T3<:AbstractVector{<:Integer}} = new(C, Igroup2items, Iitem2group)
+function treepaths(II::Vector{<:Vector{Int}}, n::Integer)
+	J = Vector{Int}(undef, n)
+	for (j, I) in enumerate(II)
+		for i in I
+			J[i] = j
+		end
+	end
+	J
 end
 
-MulticollectionSplit(C::T1, Igroup2items::T2, Iitem2group::T3) where
-		{T1<:AbstractMulticollection,
-		T2<:AbstractVector{<:AbstractVector{<:Integer}},
-		T3<:AbstractVector{<:Integer}} =
-		MulticollectionSplit{T1,T2,T3}(C, Igroup2items, Iitem2group)
-
-Base.show(io::IO, C::MulticollectionSplit) =
-		print(io, "$(typeof(C))($(length(C)))")
-
-function Base.show(io::IO, ::MIME"text/plain", C::MulticollectionSplit)
-	print(io, "$(length(C))-group split of ")
-	show(io, MIME"text/plain"(), C.C)
+struct H2Hierarchy
+	tree::Vector{Vector{Int}}
+	paths::Vector{Int}
 end
 
-Base.length(split::MulticollectionSplit) = length(split.Igroup2items)
+H2Hierarchy(tree::Vector{Vector{Int}}, n::Integer) =
+		H2Hierarchy(tree, treepaths(tree, n))
 
-Base.firstindex(split::MulticollectionSplit) = 1
-
-Base.lastindex(split::MulticollectionSplit) = length(split)
-
-Base.eachindex(split::MulticollectionSplit) = Base.OneTo(length(split))
-
-Base.checkbounds(::Type{Bool}, split::MulticollectionSplit, I) =
-		checkbounds(Bool, 1:length(split), I)
-
-Base.checkbounds(split::MulticollectionSplit, I) =
-		checkbounds(1:length(split), I)
-
-function Base.iterate(split::MulticollectionSplit, i::Integer = 1)
-	if i > length(split.Igroup2items)
+function Base.iterate(h2::H2Hierarchy, i::Integer = 1)
+	if i > 2
 		nothing
 	else
-		MulticollectionView(split.C, split.Igroup2items[i]), i+1
+		h2[i], i + 1
 	end
 end
 
-Base.eltype(::Type{<:MulticollectionSplit{T1,T2,T3}}) where {T1,T2,T3} =
-		eltype(T2)
+Base.IteratorEltype(::Type{<:H2Hierarchy}) = Base.EltypeUnknown()
 
-function Base.getindex(split::MulticollectionSplit, i::Integer)
-	@boundscheck firstindex(split) <= i <= lastindex(split) ||
-			throw(BoundsError(split, i))
-	MulticollectionView(split.C, split.Igroup2items[i])
+Base.length(::H2Hierarchy) = 2
+
+function Base.getindex(h2::H2Hierarchy, i::Integer)
+	if i == 1
+		h2.tree
+	elseif i == 2
+		h2.paths
+	else
+		throw(BoundsError(h2, i))
+	end
 end
 
-eachitem(C::AbstractMulticollection) =
-		MulticollectionSplit(C, SelfVector(length(C)), eachindex(C))
+Base.firstindex(::H2Hierarchy) = 1
 
-asawhole(C::AbstractMulticollection) =
-		MulticollectionSplit(C, [eachindex(C)], ScalarVector(1, length(C)))
+Base.lastindex(h2::H2Hierarchy) = length(h2)
+
+struct H2Iterator{T1<:AbstractMulticollection,T2<:Multicollection}
+	C::T1
+	h2::H2Hierarchy
+
+	H2Iterator{T1,T2}(C::T1, h2::H2Hierarchy) where
+			{T1<:AbstractMulticollection,T2<:Multicollection} = new(C, h2)
+end
+
+H2Iterator(C::T, h2::H2Hierarchy) where {T<:AbstractMulticollection} =
+		H2Iterator{T,typeof(parent(C))}(C, h2)
+
+@inline function Base.iterate(iter::H2Iterator, i::Int = 1)
+	if i > length(iter)
+		nothing
+	else
+		@inbounds iter[i], i + 1
+	end
+end
+
+Base.eltype(::Type{<:H2Iterator{T1,T2}}) where
+		{T1<:AbstractMulticollection,T2<:Multicollection} =
+		MulticollectionView{T2,Vector{Int}}
+
+Base.length(iter::H2Iterator) = length(iter.h2.tree)
+
+@inline function Base.getindex(iter::H2Iterator{T1,T2}, i::Integer) where
+		{T1<:AbstractMulticollection,T2<:Multicollection}
+	@boundscheck 1 <= i <= length(iter) || throw(BoundsError(iter, i))
+	view(iter.C, iter.h2.tree[i])
+end
+
+Base.firstindex(::H2Iterator) = 1
+
+Base.lastindex(iter::H2Iterator) = length(iter)
+
+function flattenh1(III::Vector{<:Vector{Vector{Int}}})
+	JJ = Vector{Int}[]
+	for II in III
+		J = Int[]
+		for I in II
+			for i in I
+				push!(J, i)
+			end
+		end
+		push!(JJ, J)
+	end
+	JJ
+end
+
+function flattenh2(III::Vector{<:Vector{Vector{Int}}})
+	JJ = Vector{Int}[]
+	for II in III
+		for I in II
+			push!(JJ, I)
+		end
+	end
+	JJ
+end
+
+struct H3Hierarchy
+	tree::Vector{Vector{Vector{Int}}}
+	flath1::H2Hierarchy
+	flath2::H2Hierarchy
+end
+
+function H3Hierarchy(tree::Vector{Vector{Vector{Int}}}, n::Integer)
+	flath1tree = flattenh1(tree)
+	flath2tree = flattenh2(tree)
+	flath1 = H2Hierarchy(flath1tree, n)
+	flath2 = H2Hierarchy(flath2tree, n)
+	H3Hierarchy(tree, flath1, flath2)
+end
+
+function Base.iterate(h3::H3Hierarchy, i::Integer = 1)
+	if i > 3
+		nothing
+	else
+		h3[i], i + 1
+	end
+end
+
+Base.IteratorEltype(::Type{<:H3Hierarchy}) = Base.EltypeUnknown()
+
+Base.length(::H3Hierarchy) = 3
+
+function Base.getindex(h3::H3Hierarchy, i::Integer)
+	if i == 1
+		h3.tree
+	elseif i == 2
+		h3.flath1
+	elseif i == 3
+		h3.flath2
+	else
+		throw(BoundsError(h3, i))
+	end
+end
+
+Base.firstindex(::H3Hierarchy) = 1
+
+Base.lastindex(h3::H3Hierarchy) = length(h3)
+
+struct H3IteratorH2{T1<:AbstractMulticollection,T2<:Multicollection}
+	C::T1
+	h3::H3Hierarchy
+
+	H3IteratorH2{T1,T2}(C::T1, h3::H3Hierarchy) where
+			{T1<:AbstractMulticollection,T2<:Multicollection} = new(C, h3)
+end
+
+H3IteratorH2(C::T, h3::H3Hierarchy) where {T<:AbstractMulticollection} =
+		H3IteratorH2{T,typeof(parent(C))}(C, h3)
+
+@inline function Base.iterate(iter::H3IteratorH2, i::Int = 1)
+	if i > length(iter)
+		nothing
+	else
+		@inbounds iter[i], i + 1
+	end
+end
+
+Base.eltype(::Type{<:H3IteratorH2{T1,T2}}) where
+		{T1<:AbstractMulticollection,T2<:Multicollection} =
+		MulticollectionView{T2,Vector{Int}}
+
+Base.length(iter::H3IteratorH2) = length(iter.h3.tree)
+
+@inline function Base.getindex(iter::H3IteratorH2{T1,T2}, i::Integer) where
+		{T1<:AbstractMulticollection,T2<:Multicollection}
+	@boundscheck 1 <= i <= length(iter) || throw(BoundsError(iter, i))
+	view(iter.C, iter.h3.flath1.tree[i])
+end
+
+Base.firstindex(::H3IteratorH2) = 1
+
+Base.lastindex(iter::H3IteratorH2) = length(iter)
+
+struct H3IteratorH1{T1<:AbstractMulticollection,T2<:Multicollection}
+	C::T1
+	i::Int
+	h3::H3Hierarchy
+
+	function H3IteratorH1{T1,T2}(C::T1, i::Integer, h3::H3Hierarchy) where
+			{T1<:AbstractMulticollection,T2<:Multicollection}
+		@boundscheck checkbounds(h3.tree, i)
+		new(C, i, h3)
+	end
+end
+
+H3IteratorH1(C::T, i::Integer, h3::H3Hierarchy) where
+		{T<:AbstractMulticollection} =
+		H3IteratorH1{T,typeof(parent(C))}(C, i, h3)
+
+@inline function Base.iterate(iter::H3IteratorH1, i::Int = 1)
+	if i > length(iter)
+		nothing
+	else
+		@inbounds iter[i], i + 1
+	end
+end
+
+Base.eltype(::Type{<:H3IteratorH1{T1,T2}}) where
+		{T1<:AbstractMulticollection,T2<:Multicollection} =
+		MulticollectionView{T2,Vector{Int}}
+
+Base.length(iter::H3IteratorH1) = length(iter.h3.tree[iter.i])
+
+@inline function Base.getindex(iter::H3IteratorH1{T1,T2}, i::Integer) where
+		{T1<:AbstractMulticollection,T2<:Multicollection}
+	@boundscheck 1 <= i <= length(iter) || throw(BoundsError(iter, i))
+	view(iter.C, iter.h3.tree[iter.i][i])
+end
+
+Base.firstindex(::H3IteratorH1) = 1
+
+Base.lastindex(iter::H3IteratorH1) = length(iter)
 
 end # module

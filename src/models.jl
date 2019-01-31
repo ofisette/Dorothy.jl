@@ -190,130 +190,123 @@ Multicollections.colltoitemprop(::Particle, ::Val{:SS}) = :ss
 
 Multicollections.collitemname(::MolecularModel) = "particle"
 
-function hierarchy(model::ParticleCollection)
+function mcrptree(model::ParticleCollection)
 	n = length(model)
 	chainids = get(model, :chainids, Repeat("", n))
 	resids = get(model, :resids, Repeat(0, n))
-	(Ichain2ps, Ip2chain), (Ires2ps, Ip2res), (Ilocalres2ps, Ip2localres) =
-			hierarchy(chainids, resids)
-	(chains = MulticollectionSplit(model, Ichain2ps, Ip2chain),
-			residues = MulticollectionSplit(model, Ires2ps, Ip2res),
-			localresidues = MulticollectionSplit(model, Ilocalres2ps,
-			Ip2localres))
+	mcrptree(chainids, resids)
 end
 
-function hierarchy(chainids::AbstractVector{<:AbstractString},
+function mcrptree(chainids::AbstractVector{<:AbstractString},
 		resids::AbstractVector{<:Integer})
 	n = length(chainids)
 	@boundscheck length(resids) == n ||
 			error("size mismatch between chainid and resid arrays")
-	Ip2chain = Vector{Int}(undef, n)
-	Ip2res = Vector{Int}(undef, n)
-	Ip2localres = Vector{Int}(undef, n)
-	Ichain2ps = UnitRange{Int}[]
-	Ires2ps = UnitRange{Int}[]
-	localresranges = Vector{UnitRange{Int}}[]
+	model = Vector{Vector{Int}}[]
 	if n > 0
-		thischainindex = 1
-		thisresindex = 1
-		thislocalresindex = 1
-		chainstart = 1
-		chainend = 1
-		resstart = 1
-		resend = 1
+		residue = [1]
+		chain = [residue]
+		push!(model, chain)
 		lastchainid = chainids[1]
 		lastresid = resids[1]
-		Ip2chain[1] = 1
-		Ip2res[1] = 1
-		Ip2localres[1] = 1
-		i = 2
-		while i <= n
+		for i = 2:n
 			thischainid = chainids[i]
 			thisresid = resids[i]
 			if thischainid != lastchainid
-				push!(Ichain2ps, chainstart:chainend)
-				push!(Ires2ps, resstart:resend)
-				if thislocalresindex > length(localresranges)
-					push!(localresranges, [resstart:resend])
-				else
-					push!(localresranges[thislocalresindex],
-							resstart:resend)
-				end
-				thischainindex += 1
-				thisresindex += 1
-				thislocalresindex = 1
-				chainstart = i
-				chainend = i
-				resstart = i
-				resend = i
-				lastchainid = thischainid
-				lastresid = thisresid
+				residue = [i]
+				chain = [residue]
+				push!(model, chain)
+			elseif thisresid != lastresid
+				residue = [i]
+				push!(chain, residue)
 			else
-				chainend += 1
-				if thisresid != lastresid
-					push!(Ires2ps, resstart:resend)
-					if thislocalresindex > length(localresranges)
-						push!(localresranges, [resstart:resend])
-					else
-						push!(localresranges[thislocalresindex],
-								resstart:resend)
-					end
-					thisresindex += 1
-					thislocalresindex += 1
-					resstart = i
-					resend = i
-					lastresid = thisresid
-				else
-					resend += 1
-				end
+				push!(residue, i)
 			end
-			Ip2chain[i] = thischainindex
-			Ip2res[i] = thisresindex
-			Ip2localres[i] = thislocalresindex
-			i += 1
-		end
-		push!(Ichain2ps, chainstart:chainend)
-		push!(Ires2ps, resstart:resend)
-		if thislocalresindex > length(localresranges)
-			push!(localresranges, [resstart:resend])
-		else
-			push!(localresranges[thislocalresindex], resstart:resend)
+			lastchainid = thischainid
+			lastresid = thisresid
 		end
 	end
-	Ilocalres2ps = [RangeVector(i) for i in localresranges]
-	(Ichain2ps, Ip2chain), (Ires2ps, Ip2res), (Ilocalres2ps, Ip2localres)
+	model
 end
 
-eachchain(model::ParticleCollection) = hierarchy(model).chains
+mcrp(model::ParticleCollection) = mcrp(mcrptree(model), length(model))
 
-eachresidue(model::ParticleCollection) = hierarchy(model).residues
+mcrp(tree::Vector{Vector{Vector{Int}}}, n::Integer) = H3Hierarchy(tree, n)
 
-eachlocalresidue(model::ParticleCollection) = hierarchy(model).localresidues
+chains(model::ParticleCollection) = chains(model, mcrp(model))
 
-function eachfragment(model::ParticleCollection)
-	G = get(model, :topology, Graph(length(model)))
-	(Ifrag2ps, Ip2frag) = eachfragment(G)
-	MulticollectionSplit(model, Ifrag2ps, Ip2frag)
-end
+chains(model::ParticleCollection, mcrp::H3Hierarchy) =
+		H3IteratorH2(model, mcrp)
 
-function eachfragment(G::AbstractGraph)
-	Ip2frag = similar(G, Int)
-	Ifrag2ps = Vector{Int}[]
-	visited = falses(length(G))
-	i = 1
-	thisfragindex = 1
-	while true
-		I = sort!(connected!(Int[], G, i, visited))
-		push!(Ifrag2ps, I)
-		Ip2frag[I] .= thisfragindex
-		thisfragindex += 1
-		i = findnext(!, visited, i+1)
-		if i == nothing
-			break
+residues(model::ParticleCollection) = residues(model, mcrp(model))
+
+residues(model::ParticleCollection, mcrp::H3Hierarchy) =
+		H2Iterator(model, mcrp.flath2)
+
+residues(model::ParticleCollection, chainindex::Integer) =
+		residues(model, chainindex, mcrp(model))
+
+residues(model::ParticleCollection, ichain::Integer, mcrp::H3Hierarchy) =
+		H3IteratorH1(model, ichain, mcrp)
+
+mfptree(model::ParticleCollection) =
+		mfptree(get(model, :topology, Graph(length(model))))
+
+function mfptree(G::AbstractGraph)
+	n = length(G)
+	model = Vector{Int}[]
+	if n > 0
+		visited = falses(n)
+		i = 1
+		while true
+			fragment = sort!(connected!(Int[], G, i, visited))
+			push!(model, fragment)
+			i = findnext(!, visited, i+1)
+			if i == nothing
+				break
+			end
 		end
 	end
-	Ifrag2ps, Ip2frag
+	model
 end
+
+mfp(model::ParticleCollection) = mfp(mfptree(model), length(model))
+
+mfp(tree::Vector{Vector{Int}}, n::Integer) = H2Hierarchy(tree, n)
+
+fragments(model::ParticleCollection) = fragments(model, mfp(model))
+
+fragments(model::ParticleCollection, mfp::H2Hierarchy) = H2Iterator(model, mfp)
+
+#=
+for chain in chains(model)
+	chain.chainid[1]
+	for res in residues(chain)
+		res.resid[1]
+		res.resname[1]
+		for p in res
+			...
+		end
+	end
+end
+
+for res in residues(model)
+	...
+end
+
+for frag in fragments(model)
+	...
+end
+
+hierarchy = mcrp(model)
+for (i, chain) in enumerate(chains(model, hierarchy))
+	for (j, res) in enumerate(residues(model, i, hierarchy))
+		for p in res
+			...
+		end
+	end
+end
+=#
 
 function chainat(model::ParticleCollection, i::Integer)
 	@boundscheck checkbounds(model, i)
@@ -325,8 +318,7 @@ function chainat(chainids::AbstractArray{<:AbstractString}, i::Integer)
 	@boundscheck checkbounds(chainids, i)
 	n = length(chainids)
 	thischainid = chainids[i]
-	firsti = i
-	firsti -= 1
+	firsti = i - 1
 	while firsti > 0 && chainids[firsti] == thischainid
 		firsti -= 1
 	end

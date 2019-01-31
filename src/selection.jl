@@ -36,41 +36,6 @@ function getposgrid!(cache::SelectionCache, Rw::AbstractVector{Vector3D},
 	end
 end
 
-abstract type SelectBy end
-
-struct SelectByChain <: SelectBy end
-
-const Chain = SelectByChain()
-
-(::SelectByChain)(model::ParticleCollection, cache::SelectionCache) =
-		get!(cache, :hierarchy, hierarchy(model)).chains
-
-struct SelectByResidue <: SelectBy end
-
-const Residue = SelectByResidue()
-
-(::SelectByResidue)(model::ParticleCollection, cache::SelectionCache) =
-		get!(cache, :hierarchy, hierarchy(model)).residues
-
-struct SelectByLocalResidue <: SelectBy end
-
-const LocalResidue = SelectByLocalResidue()
-
-(::SelectByLocalResidue)(model::ParticleCollection, cache::SelectionCache) =
-		get!(cache, :hierarchy, hierarchy(model)).localresidues
-
-struct SelectByFragment <: SelectBy end
-
-const Fragment = SelectByFragment()
-
-(::SelectByFragment)(model::ParticleCollection, cache::SelectionCache) =
-		get!(cache, :fragments, eachfragment(model))
-
-struct SelectByParticle <: SelectBy end
-
-(::SelectByParticle)(model::ParticleCollection, cache::SelectionCache) =
-		eachitem(model)
-
 abstract type Selector end
 
 Base.map(s::Selector, model::ParticleCollection, cache = SelectionCache()) =
@@ -79,7 +44,7 @@ Base.map(s::Selector, model::ParticleCollection, cache = SelectionCache()) =
 function Base.map!(s::Selector, results::BitVector, model::ParticleCollection,
 		cache = SelectionCache())
 	if ! isempty(model)
-		select!(s, results, model, eachindex(model), cache)
+		select!(results, eachindex(model), s, model, cache)
 	end
 	results
 end
@@ -87,26 +52,39 @@ end
 Base.view(model::ParticleCollection, s::Selector, cache = SelectionCache()) =
 		MulticollectionView(model, findall(map(s, model, cache)))
 
-function pick(model::ParticleCollection, s::Selector, cache = SelectionCache())
-	I = findall(map(s, model, cache))
-	length(I) == 1 || error("expected exactly one particle")
-	model[I[1]]
-end
+abstract type SelectionMode end
 
-pick(model::ParticleCollection, chainid::AbstractString, resid::Real,
-		name::AbstractString, cache = Selectioncache()) =
-		pick(model, ChainId(chainid) & ResId(resid) & Name(name), cache)
+struct ModelMode <: SelectionMode end
 
-pick(model::ParticleCollection, chainid::AbstractString, name::AbstractString,
-		cache = SelectionCache()) =
-		pick(model, ChainId(chainid) & Name(name), cache)
+Base.show(io::IO, ::ModelMode) = "model"
 
-pick(model::ParticleCollection, resid::Real, name::AbstractString,
-		cache = SelectionCache()) =
-		pick(model, ResId(resid) & Name(name), cache)
+struct ChainMode <: SelectionMode end
 
-pick(model::ParticleCollection, name::AbstractString,
-		cache = SelectionCache()) = pick(model, Name(name), cache)
+Base.show(io::IO, ::ChainMode) = "chain"
+
+getmcrp!(model::ParticleCollection, cache::SelectionCache) =
+		get!(cache, :mcrp, mcrp(model))
+
+geth2!(model::ParticleCollection, cache::SelectionCache, ::ChainMode) =
+		getmcrp!(model, cache).flath1
+
+struct ResidueMode <: SelectionMode end
+
+Base.show(io::IO, ::ResidueMode) = "residue"
+
+geth2!(model::ParticleCollection, cache::SelectionCache, ::ResidueMode) =
+		getmcrp!(model, cache).flath2
+
+struct ParticleMode <: SelectionMode end
+
+Base.show(io::IO, ::ParticleMode) = "particle"
+
+struct FragmentMode <: SelectionMode end
+
+Base.show(io::IO, ::FragmentMode) = "fragment"
+
+geth2!(model::ParticleCollection, cache::SelectionCache, ::FragmentMode) =
+		get!(cache, :mfp, mfp(model))
 
 iscallable(f) = !isempty(methods(f))
 
@@ -117,51 +95,44 @@ function checkcallable(f)
 	f
 end
 
-selection_index_f(f) = checkcallable(f)
+indexfunction(f) = checkcallable(f)
 
-selection_index_f(i::Integer) = (I -> [I[i]])
+indexfunction(i::Integer) = (J -> i)
 
-selection_index_f(I::AbstractVector{<:Integer}) = (J -> J[I])
+indexfunction(I::AbstractVector{<:Integer}) = (J -> I)
 
-selection_index_f(i0::Integer, I::Integer...) = selection_index_f([i0, I...])
+positionfunction(f) = checkcallable(f)
 
-selection_pos_f(f) = checkcallable(f)
+positionfunction(R::AbstractVector{<:Real}) = positionfunction(Vector3D(R))
 
-selection_pos_f(R::AbstractVector{<:Real}) = selection_pos_f(Vector3D(R))
+positionfunction(R::Vector3D) = positionfunction([R])
 
-selection_pos_f(R::Vector3D) = selection_pos_f([R])
+positionfunction(R::AbstractVector{Vector3D}) = (model, cache) -> R
 
-selection_pos_f(R::AbstractVector{Vector3D}) = (model, cache) -> R
+integerpredicate(f) = checkcallable(f)
 
-selection_int_predicate(f) = checkcallable(f)
+integerpredicate(i::Integer) = (==(i))
 
-selection_int_predicate(i::Integer) = (==(i))
-
-function selection_int_predicate(I::AbstractVector{<:Integer})
+function integerpredicate(I::AbstractVector{<:Integer})
 	J = sort(I)
 	i -> !isempty(searchsorted(J, i))
 end
 
-selection_int_predicate(i0::Integer, I::Integer...) =
-		selection_int_predicate([i0, I...])
+stringpredicate(f) = checkcallable(f)
 
-selection_string_predicate(f) = checkcallable(f)
+stringpredicate(s::AbstractString) = namematcher(s)
 
-selection_string_predicate(s::AbstractString) = namematcher(s)
+stringpredicate(S::AbstractVector{<:AbstractString}) = namematcher(s)
 
-selection_string_predicate(s0::AbstractString, S::AbstractString...) =
-		namematcher(s0, S...)
+realpredicate(f) = checkcallable(f)
 
-selection_real_predicate(f) = checkcallable(f)
+realpredicate(r::Real) = (s -> isapprox(s, r))
 
-selection_real_predicate(r::Real) = (s -> isapprox(s, r))
+vector3dpredicate(f) = checkcallable(f)
 
-selection_vector3d_predicate(f) = checkcallable(f)
+vector3dpredicate(V::AbstractVector{<:Real}) = vector3dpredicate(Vector3D(V))
 
-selection_vector3d_predicate(V::AbstractVector{<:Real}) =
-		selection_vector3d_predicate(Vector3D(V))
-
-selection_vector3d_predicate(V::Vector3D) = (W -> isapprox(W, V))
+vector3dpredicate(V::Vector3D) = (W -> isapprox(W, V))
 
 struct NotSelector{T<:Selector} <: Selector
 	s::T
@@ -169,15 +140,13 @@ struct NotSelector{T<:Selector} <: Selector
 	NotSelector{T}(s::T) where {T<:Selector} = new(s)
 end
 
-function select!(s::NotSelector, results::BitVector, model::ParticleCollection,
-		subset::AbstractVector{<:Integer}, cache::SelectionCache)
-	select!(s.s, results, model, subset, cache)
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::NotSelector, model::ParticleCollection, cache::SelectionCache)
+	select!(results, subset, s.s, model, cache)
 	for i in subset
 		results[i] = !results[i]
 	end
 end
-
-Base.:(!)(s::T) where {T<:Selector} = NotSelector{T}(s)
 
 struct AndSelector{T1<:Selector,T2<:Selector} <: Selector
 	s1::T1
@@ -187,21 +156,18 @@ struct AndSelector{T1<:Selector,T2<:Selector} <: Selector
 			new(s1, s2)
 end
 
-function select!(s::AndSelector, results::BitVector, model::ParticleCollection,
-		subset::AbstractVector{<:Integer}, cache::SelectionCache)
-	select!(s.s1, results, model, subset, cache)
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::AndSelector, model::ParticleCollection, cache::SelectionCache)
+	select!(results, subset, s.s1, model, cache)
 	subset2 = [i for i in subset if results[i]]
 	results2 = similar(results)
-	select!(s.s2, results2, model, subset2, cache)
+	select!(results2, subset2, s.s2, model, cache)
 	for i in subset2
 		if ! results2[i]
 			results[i] = false
 		end
 	end
 end
-
-Base.:(&)(s1::T1, s2::T2) where {T1<:Selector,T2<:Selector} =
-		AndSelector{T1,T2}(s1, s2)
 
 struct OrSelector{T1<:Selector,T2<:Selector} <: Selector
 	s1::T1
@@ -211,21 +177,18 @@ struct OrSelector{T1<:Selector,T2<:Selector} <: Selector
 			new(s1, s2)
 end
 
-function select!(s::OrSelector, results::BitVector, model::ParticleCollection,
-		subset::AbstractVector{<:Integer}, cache::SelectionCache)
-	select!(s.s1, results, model, subset, cache)
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::OrSelector, model::ParticleCollection, cache::SelectionCache)
+	select!(results, subset, s.s1, model, cache)
 	subset2 = [i for i in subset if ! results[i]]
 	results2 = similar(results)
-	select!(s.s2, results2, model, subset2, cache)
+	select!(results2, subset2, s.s2, model, cache)
 	for i in subset2
 		if results2[i]
 			results[i] = true
 		end
 	end
 end
-
-Base.:(|)(s1::T1, s2::T2) where {T1<:Selector,T2<:Selector} =
-		OrSelector{T1,T2}(s1, s2)
 
 struct XorSelector{T1<:Selector,T2<:Selector} <: Selector
 	s1::Selector
@@ -235,18 +198,15 @@ struct XorSelector{T1<:Selector,T2<:Selector} <: Selector
 			new(s1, s2)
 end
 
-function select!(s::XorSelector, results::BitVector, model::ParticleCollection,
-		subset::AbstractVector{<:Integer}, cache::SelectionCache)
-	select!(s.s1, results, model, subset, cache)
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::XorSelector, model::ParticleCollection, cache::SelectionCache)
+	select!(results, subset, s.s1, model, cache)
 	results2 = similar(results)
-	select!(s.s2, results2, model, subset, cache)
+	select!(results2, subset2, s.s2, model, cache)
 	for i in subset
 		results[i] = results[i] ⊻ results2[i]
 	end
 end
-
-Base.:(⊻)(s1::T1, s2::T2) where {T1<:Selector,T2<:Selector} =
-		XorSelector{T1,T2}(s1, s2)
 
 struct CachedSelector{T<:Selector} <: Selector
 	s::T
@@ -257,12 +217,11 @@ end
 
 CachedSelector(s::T, id::Symbol) where {T<:Selector} = CachedSelector{T}(s, id)
 
-function select!(s::CachedSelector, results::BitVector,
-		model::ParticleCollection, subset::AbstractVector{<:Integer},
-		cache::SelectionCache)
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::CachedSelector, model::ParticleCollection, cache::SelectionCache)
 	cached::BitVector = get!(cache, s.id) do
 		work = BitVector(undef, length(model))
-		select!(s.s, work, model, eachindex(model), cache)
+		select!(work, eachindex(model), s.s, model, cache)
 		work
 	end
 	for i in subset
@@ -278,93 +237,161 @@ end
 
 MapSelector(map::T) where {T<:AbstractVector{<:Bool}} = MapSelector{T}(map)
 
-Map(map::AbstractVector{<:Bool}) = MapSelector(map)
-
-function Map(view::MolecularModelView)
-	model = parent(view)
-	map = falses(length(model))
-	for i in parentindices(view)
-		map[i] = true
-	end
-	MapSelector(map)
-end
-
-function select!(s::MapSelector, results::BitVector, model::ParticleCollection,
-		subset::AbstractVector{<:Integer}, cache::SelectionCache)
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::MapSelector, model::ParticleCollection, cache::SelectionCache)
 	for i in subset
 		results[i] = s.map[i]
 	end
 end
 
-struct IndexSelector{T1,T2<:SelectBy} <:Selector
+struct IndexSelector{T1,T2<:SelectionMode,T3<:SelectionMode} <:Selector
 	f::T1
 	by::T2
+	ineach::T3
 
-	IndexSelector{T1,T2}(f::T1, by::T2) where {T1,T2<:SelectBy} = new(f, by)
+	function IndexSelector{T1,T2,T3}(f::T1, by::T2, ineach::T3) where
+			{T1,T2<:SelectionMode,T3<:SelectionMode}
+		if ! iscompatible(IndexSelector, by, ineach)
+			error("cannot select indices by $(by) in each $(ineach)")
+		end
+		new(f, by, ineach)
+	end
 end
 
-IndexSelector(f::T1, by::T2) where {T1,T2<:SelectBy} =
-		IndexSelector{T1,T2}(f, by)
+IndexSelector(f::T1, by::T2, ineach::T3) where
+		{T1,T2<:SelectionMode,T3<:SelectionMode} =
+		IndexSelector{T1,T2,T3}(f, by, ineach)
 
-Index(X...; by::SelectBy = SelectByParticle()) =
-		IndexSelector(selection_index_f(X...), by)
+iscompatible(::Type{<:IndexSelector},
+		by::SelectionMode, ineach::SelectionMode) = false
 
-# BUG: Here, I could end up being a single integer returned by a function. We
-# could overload selectindices! accordingly. Or just use a union and iterate
-# over the integer!
-function select!(s::IndexSelector, results::BitVector,
-		model::ParticleCollection, subset::AbstractVector{<:Integer},
-		cache::SelectionCache)
+iscompatible(::Type{<:IndexSelector},
+		by::ParticleMode, ineach::ModelMode) = true
+
+iscompatible(::Type{<:IndexSelector},
+		by::SelectionMode, ineach::ModelMode) = true
+
+iscompatible(::Type{<:IndexSelector},
+		by::ParticleMode, ineach::SelectionMode) = true
+
+iscompatible(::Type{<:IndexSelector}, by::ResidueMode, ineach::ChainMode) = true
+
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::IndexSelector, model::ParticleCollection, cache::SelectionCache)
 	work = falses(length(model))
-	split = s.by(model, cache)
-	I = s.f(eachindex(split.Igroup2items))
-	selectindices!(work, I, split.Igroup2items)
+	selectindices!(work, s.f, s.by, s.ineach, model, cache)
 	for i in subset
 		results[i] = work[i]
 	end
 end
 
-function selectindices!(results::BitVector, I::AbstractVector{<:Integer},
-		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}})
+selectindices!(results::BitVector, f, by::ParticleMode, ineach::ModelMode,
+		model::ParticleCollection, cache::SelectionCache) =
+		selectindices0r!(results, f(eachindex(model)))
+
+selectindices0r!(results::BitVector,
+		I::Union{AbstractVector{<:Integer},Integer}) = (results[I] = true)
+
+selectindices!(results::BitVector, f, by::ParticleMode, ineach::SelectionMode,
+		model::ParticleCollection, cache::SelectionCache) =
+		selectindices01(results, f, geth2!(model, cache, ineach).tree)
+
+function selectindices01!(results::BitVector, f,
+		tree::AbstractVector{<:AbstractVector{<:Integer}})
+	for branch in tree
+		selectindices01!(results, branch, f(eachindex(branch)))
+	end
+end
+
+function selectindices01!(results::BitVector, branch::AbstractVector{<:Integer},
+		I::Union{AbstractVector{<:Integer},Integer})
 	for i in I
-		for j in Igroup2ps[i]
+		results[branch[i]] = true
+	end
+end
+
+selectindices!(results::BitVector, f, by::SelectionMode, ineach::ModelMode,
+		model::ParticleCollection, cache::SelectionCache) =
+		selectindices1r!(results, f, geth2!(model, cache, by).tree)
+
+selectindices1r!(results::BitVector, f,
+		tree::AbstractVector{<:AbstractVector{<:Integer}}) =
+		selectindices1r!(results, tree, f(eachindex(tree)))
+
+function selectindices1r!(results::BitVector,
+		tree::AbstractVector{<:AbstractVector{<:Integer}},
+		I::Union{AbstractVector{<:Integer},Integer})
+	for i in I
+		for j in tree[i]
 			results[j] = true
 		end
 	end
 end
 
-struct ExpandSelector{T1<:Selector,T2<:SelectBy} <: Selector
+selectindices!(results::BitVector, f, by::ResidueMode, ineach::ChainMode,
+		model::ParticleCollection, cache::SelectionCache) =
+		selectindices12!(results, f, getmcrp!(model, cache).tree)
+
+function selectindices12!(results::BitVector, f,
+		tree::AbstractVector{<:AbstractVector{<:AbstractVector{<:Integer}}})
+	for branch in tree
+		selectindices12!(results, branch, f(eachindex(branch)))
+	end
+end
+
+function selectindices12!(results::BitVector,
+		branch::AbstractVector{<:AbstractVector{<:Integer}},
+		I::Union{AbstractVector{<:Integer},Integer})
+	for i in I
+		for j in branch[i]
+			results[j] = true
+		end
+	end
+end
+
+abstract type ByGroupSelector <: Selector end
+
+struct ExpandSelector{T1<:Selector,T2<:SelectionMode} <: ByGroupSelector
 	s::T1
 	by::T2
 
-	ExpandSelector{T1,T2}(s::T1, by::T2) where {T1<:Selector,T2<:SelectBy} =
-			new(s, by)
+	function ExpandSelector{T1,T2}(s::T1, by::T2) where
+			{T1<:Selector,T2<:SelectionMode}
+		if ! iscompatible(ByGroupSelector, by)
+			error("cannot expand selections by $(by)")
+		end
+		new(s, by)
+	end
 end
 
-ExpandSelector(s::T1, by::T2) where {T1<:Selector,T2<:SelectBy} =
+ExpandSelector(s::T1, by::T2) where {T1<:Selector,T2<:SelectionMode} =
 		ExpandSelector{T1,T2}(s, by)
 
-Expand(s::Selector; by::SelectBy) = ExpandSelector(s, by)
+iscompatible(::Type{<:ByGroupSelector}, ::SelectionMode) = false
 
-function select!(s::ExpandSelector, results::BitVector,
-		model::ParticleCollection, subset::AbstractVector{<:Integer},
-		cache::SelectionCache,)
-	select!(s.s, results, model, subset, cache)
+iscompatible(::Type{<:ByGroupSelector}, ::ChainMode) = true
+
+iscompatible(::Type{<:ByGroupSelector}, ::ResidueMode) = true
+
+iscompatible(::Type{<:ByGroupSelector}, ::FragmentMode) = true
+
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::ExpandSelector, model::ParticleCollection, cache::SelectionCache)
+	select!(results, subset, s.s, model, cache)
 	work = falses(length(model))
-	split = s.by(model, cache)
-	selectpartial!(work, results, split.Igroup2items, split.Iitem2group, subset)
+	selectpartial!(work, subset, results, geth2!(model, cache, s.by)...)
 	for i in subset
 		results[i] = work[i]
 	end
 end
 
-function selectpartial!(results::BitVector, selected::BitVector,
-		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}},
-		Ip2group::AbstractVector{<:Integer}, subset::AbstractVector{<:Integer})
+function selectpartial!(results::BitVector, subset::AbstractVector{<:Integer},
+		selected::BitVector, tree::AbstractVector{<:AbstractVector{<:Integer}},
+		paths::AbstractVector{<:Integer})
 	for i in subset
 		if selected[i]
 			if ! results[i]
-				for j in Igroup2ps[Ip2group[i]]
+				for j in tree[paths[i]]
 					results[j] = true
 				end
 			end
@@ -372,39 +399,39 @@ function selectpartial!(results::BitVector, selected::BitVector,
 	end
 end
 
-struct RestrictSelector{T1<:Selector,T2<:SelectBy} <: Selector
+struct RestrictSelector{T1<:Selector,T2<:SelectionMode} <: ByGroupSelector
 	s::T1
 	by::T2
 
-	RestrictSelector{T1,T2}(s::T1, by::T2) where {T1<:Selector,T2<:SelectBy} =
-			new(s, by)
+	function RestrictSelector{T1,T2}(s::T1, by::T2) where
+			{T1<:Selector,T2<:SelectionMode}
+			if ! iscompatible(ByGroupSelector, by)
+				error("cannot restrict selections by $(by)")
+			end
+		new(s, by)
+	end
 end
 
-RestrictSelector(s::T1, by::T2) where {T1<:Selector,T2<:SelectBy} =
+RestrictSelector(s::T1, by::T2) where {T1<:Selector,T2<:SelectionMode} =
 		RestrictSelector{T1,T2}(s, by)
 
-Restrict(s::Selector; by::SelectBy) = RestrictSelector(s, by)
-
-function select!(s::RestrictSelector, results::BitVector,
-		model::ParticleCollection, subset::AbstractVector{<:Integer},
-		cache::SelectionCache)
-	select!(s.s, results, model, subset, cache)
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::RestrictSelector, model::ParticleCollection, cache::SelectionCache)
+	select!(results, subset, s.s, model, cache)
 	work = trues(length(model))
-	split = s.by(model, cache)
-	selectfull!(work, results, split.Igroup2items, split.Iitem2group, subset)
+	selectfull!(work, subset, results, geth2!(model, cache, s.by)...)
 	for i in subset
 		results[i] = work[i]
 	end
 end
 
-function selectfull!(results::BitVector, selected::BitVector,
-		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}},
-		Ip2group::AbstractVector{<:Integer},
-		subset::AbstractVector{<:Integer})
+function selectfull!(results::BitVector, subset::AbstractVector{<:Integer},
+		selected::BitVector, tree::AbstractVector{<:AbstractVector{<:Integer}},
+		paths::AbstractVector{<:Integer})
 	for i in subset
 		if ! selected[i]
 			if results[i]
-				for j in Igroup2ps[Ip2group[i]]
+				for j in tree[paths[i]]
 					results[j] = false
 				end
 			end
@@ -412,120 +439,93 @@ function selectfull!(results::BitVector, selected::BitVector,
 	end
 end
 
-struct WithinPositionSelector{T} <: Selector
-	d::Float64
-	of::T
-	by::SelectBy
+abstract type WithinSelector <: Selector end
 
-	function WithinPositionSelector{T}(d::Real, of::T, by::SelectBy) where {T}
+struct WithinPositionSelector{T1,T2<:SelectionMode} <: WithinSelector
+	d::Float64
+	of::T1
+	by::T2
+
+	function WithinPositionSelector{T1,T2}(d::Real, of::T1, by::T2) where
+			{T1,T2<:SelectionMode}
+		if ! iscompatible(WithinSelector, by)
+			error("cannot select within a distance by $(by)")
+		end
 		d > 0.0 || error("expected strictly positive distance")
 		new(d, of, by)
 	end
 end
 
-WithinPositionSelector(d::Real, of::T, by::SelectBy) where {T} =
-		WithinPositionSelector{T}(d, of, by)
+iscompatible(::Type{<:WithinSelector}, by::SelectionMode) =
+		(by == ParticleMode() || iscompatible(ByGroupSelector, by))
 
-WithinSelector(d::Real, of, by::SelectBy) =
-		WithinPositionSelector(d, selection_pos_f(of), by)
+WithinPositionSelector(d::Real, of::T1, by::T2) where {T1,T2<:SelectionMode} =
+		WithinPositionSelector{T1,T2}(d, of, by)
 
-Expand(s::WithinPositionSelector; by::SelectBy) =
-		WithinPositionSelector(s.d, s.of, by)
+WithinSelector(d::Real, of, by::SelectionMode) =
+		WithinPositionSelector(d, positionfunction(of), by)
 
-function select!(s::WithinPositionSelector, results::BitVector,
-		model::ParticleCollection, subset::AbstractVector{<:Integer},
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::WithinPositionSelector, model::ParticleCollection,
 		cache::SelectionCache)
 	work = trues(length(model))
 	for i in subset
 		work[i] = false
 	end
-	split = s.by(model, cache)
 	cell = get(model.header, :cell, nothing)
 	Rw, Kw = getpbcpos!(cache, model.R, cell)
 	pg = getposgrid!(cache, Rw, Kw, cell, s.d)
 	Rref = s.of(model, cache)
-	selectwithinpos!(work, split.Igroup2items, split.Iitem2group, Rw, Kw, cell,
-			Rref, s.d, pg)
+	selectwithinpos!(work, s.d, s.by, Rw, Kw, Rref, cell, pg, model, cache)
 	for i in subset
 		results[i] = work[i]
 	end
 end
 
-function selectwithinpos!(results::BitVector,
-		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}},
-		Ip2group::AbstractVector{<:Integer}, Rw::AbstractVector{Vector3D},
-		Kw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		Rref::AbstractVector{Vector3D}, d::Real, pg::PositionGrid)
+selectwithinpos!(results::BitVector, d::Real, by::ParticleMode,
+		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
+		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
+		pg::PositionGrid, model::ParticleCollection, cache::SelectionCache) =
+		selectwithinpos0!(results, d, Rw, Kw, Rref, cell, pg)
+
+function selectwithinpos0!(results::BitVector, d::Real,
+		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
+		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
+		pg::PositionGrid)
 	d2 = d^2
-	I = Int[]
+	J = Int[]
 	for Rrefi in Rref
-		Rrefiw, Rrefikw = pbcpos(Rrefi, cell)
-		for i in findnear!(I, pg, Rrefi)
-			if ! results[i]
-				if sqmindist(Rw[i], Kw[i], Rrefiw, Rrefikw, cell) <= d2
-					for j in Igroup2ps[Ip2group[i]]
-						results[j] = true
-					end
+		Rrefiw, Krefiw = pbcpos(Rrefi, cell)
+		for j in findnear!(J, pg, Rrefiw, Krefiw)
+			if ! results[j]
+				if sqmindist(Rw[j], Kw[j], Rrefiw, Krefiw, cell) <= d2
+					results[j] = true
 				end
 			end
 		end
 	end
 end
 
-struct WithinSelectionSelector{T<:Selector} <: Selector
-	d::Float64
-	of::T
-	by::SelectBy
+selectwithinpos!(results::BitVector, d::Real, by::SelectionMode,
+		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
+		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
+		pg::PositionGrid, model::ParticleCollection, cache::SelectionCache) =
+		selectwithinpos1!(results, d, Rw, Kw, Rref, cell, pg,
+		geth2!(model, cache, by)...)
 
-	function WithinSelectionSelector{T}(d::Real, of::T, by::SelectBy) where
-			{T<:Selector}
-		d > 0.0 || error("expected strictly positive distance")
-		new(d, of, by)
-	end
-end
-
-WithinSelectionSelector(d::Real, of::T, by::SelectBy) where {T<:Selector} =
-		WithinSelectionSelector{T}(d, of, by)
-
-WithinSelector(d::Real, of::Selector, by::SelectBy) =
-		WithinSelectionSelector(d, of, by)
-
-Within(d::Real; of) = WithinSelector(d, of, SelectByParticle())
-
-Expand(s::WithinSelectionSelector; by::SelectBy) =
-		WithinSelectionSelector(s.d, s.of, by)
-
-function select!(s::WithinSelectionSelector, results::BitVector,
-		model::ParticleCollection, subset::AbstractVector{<:Integer},
-		cache::SelectionCache)
-	work = trues(length(model))
-	for i in subset
-		work[i] = false
-	end
-	split = s.by(model, cache)
-	cell = get(model.header, :cell, nothing)
-	Rw, Kw = getpbcpos!(cache, model.R, cell)
-	pg = getposgrid!(cache, Rw, Kw, cell, s.d)
-	Iref = findall(map(s.of, model, cache))
-	selectwithinsel!(work, split.Igroup2items, split.Iitem2group, Rw, Kw, cell,
-			Iref, s.d, pg)
-	for i in subset
-		results[i] = work[i]
-	end
-end
-
-function selectwithinsel!(results::BitVector,
-		Igroup2ps::AbstractVector{<:AbstractVector{<:Integer}},
-		Ip2group::AbstractVector{<:Integer}, Rw::AbstractVector{Vector3D},
-		Kw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		Iref::AbstractVector{<:Integer}, d::Real, pg::PositionGrid)
+function selectwithinpos1!(results::BitVector, d::Real,
+		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
+		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
+		pg::PositionGrid, tree::AbstractVector{<:AbstractVector{<:Integer}},
+		paths::AbstractVector{<:Integer})
 	d2 = d^2
 	J = Int[]
-	for i in Iref
-		for j in findnear!(J, pg, i)
+	for Rrefi in Rref
+		Rrefiw, Krefiw = pbcpos(Rrefi, cell)
+		for j in findnear!(J, pg, Rrefiw, Krefiw)
 			if ! results[j]
-				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= d2
-					for k in Igroup2ps[Ip2group[j]]
+				if sqmindist(Rw[j], Kw[j], Rrefiw, Krefiw, cell) <= d2
+					for k in tree[paths[j]]
 						results[k] = true
 					end
 				end
@@ -534,173 +534,124 @@ function selectwithinsel!(results::BitVector,
 	end
 end
 
-struct PredicateSelector{T1,T2} <: Selector
+struct WithinSelectionSelector{T1<:Selector,T2<:SelectionMode} <: WithinSelector
+	d::Float64
+	of::T1
+	by::T2
+
+	function WithinSelectionSelector{T1,T2}(d::Real, of::T1, by::T2) where
+			{T1<:Selector,T2<:SelectionMode}
+		if ! iscompatible(WithinSelector, by)
+			error("cannot select within a distance by $(by)")
+		end
+		d > 0.0 || error("expected strictly positive distance")
+		new(d, of, by)
+	end
+end
+
+WithinSelectionSelector(d::Real, of::T1, by::T2) where
+		{T1<:Selector,T2<:SelectionMode} =
+		WithinSelectionSelector{T1,T2}(d, of, by)
+
+WithinSelector(d::Real, of::Selector, by::SelectionMode) =
+		WithinSelectionSelector(d, of, by)
+
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::WithinSelectionSelector, model::ParticleCollection,
+		cache::SelectionCache)
+	work = trues(length(model))
+	for i in subset
+		work[i] = false
+	end
+	cell = get(model.header, :cell, nothing)
+	Rw, Kw = getpbcpos!(cache, model.R, cell)
+	pg = getposgrid!(cache, Rw, Kw, cell, s.d)
+	Iref = findall(map(s.of, model, cache))
+	selectwithinsel!(work, s.d, s.by, Rw, Kw, Iref, cell, pg, model, cache)
+	for i in subset
+		results[i] = work[i]
+	end
+end
+
+selectwithinsel!(results::BitVector, d::Real, by::ParticleMode,
+		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
+		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
+		pg::PositionGrid, model::ParticleCollection, cache::SelectionCache) =
+		selectwithinsel0!(results, d, Rw, Kw, Iref, cell, pg)
+
+function selectwithinsel0!(results::BitVector, d::Real,
+		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
+		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
+		pg::PositionGrid)
+	d2 = d^2
+	J = Int[]
+	for i in Iref
+		for j in findnear!(J, pg, i)
+			if ! results[j]
+				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= d2
+					results[j] = true
+				end
+			end
+		end
+	end
+end
+
+selectwithinsel!(results::BitVector, d::Real, by::SelectionMode,
+		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
+		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
+		pg::PositionGrid, model::ParticleCollection, cache::SelectionCache) =
+		selectwithinsel1!(results, d, Rw, Kw, Iref, cell, pg,
+		geth2!(model, cache, by)...)
+
+function selectwithinsel1!(results::BitVector, d::Real,
+		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
+		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
+		pg::PositionGrid, tree::AbstractVector{<:AbstractVector{<:Integer}},
+		paths::AbstractVector{<:Integer})
+	d2 = d^2
+	J = Int[]
+	for i in Iref
+		for j in findnear!(J, pg, i)
+			if ! results[j]
+				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= d2
+					for k in tree[paths[j]]
+						results[k] = true
+					end
+				end
+			end
+		end
+	end
+end
+
+struct PropertySelector{T1,T2} <: Selector
 	getter::T1
 	predicate::T2
 
-	PredicateSelector{T1,T2}(getter::T1, predicate::T2) where {T1,T2} =
+	PropertySelector{T1,T2}(getter::T1, predicate::T2) where {T1,T2} =
 			new(getter, predicate)
 end
 
-PredicateSelector(getter::T1, predicate::T2) where {T1,T2} =
-		PredicateSelector{T1,T2}(getter, predicate)
+PropertySelector(getter::T1, predicate::T2) where {T1,T2} =
+		PropertySelector{T1,T2}(getter, predicate)
 
-select!(s::PredicateSelector, results::BitVector,
-		model::ParticleCollection, subset::AbstractVector{<:Integer},
-		cache::SelectionCache) = selectpredicated!(s.predicate, results,
-		s.getter(model, cache), subset)
+select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::PropertySelector, model::ParticleCollection, cache::SelectionCache) =
+		selecttrue!(results, subset, s.predicate, s.getter(model, cache))
 
-function selectpredicated!(f, results::BitVector, V::AbstractVector,
-		subset::AbstractVector{<:Integer})
+function selecttrue!(results::BitVector, subset::AbstractVector{<:Integer},
+		predicate, V::AbstractVector)
 	for i in subset
-		results[i] = f(V[i])
+		results[i] = predicate(V[i])
 	end
 end
-
-Id(X...) = PredicateSelector((model, cache) -> model.ids,
-		selection_int_predicate(X...))
-
-Name(X...) = PredicateSelector((model, cache) -> model.names,
-		selection_string_predicate(X...))
-
-ResId(X...) = PredicateSelector((model, cache) -> model.resids,
-		selection_int_predicate(X...))
-
-ResName(X...) = PredicateSelector((model, cache) -> model.resnames,
-		selection_string_predicate(X...))
-
-ChainId(X...) = PredicateSelector((model, cache) ->
-		get(model, :chainids, Repeat("", length(model))),
-		selection_string_predicate(X...))
-
-function Element(X...)
-	f = function (model, cache)
-		get(model, :elements) do
-			get!(cache, :elements) do
-				guesselements!(similar(model, String), model)
-			end
-		end
-	end
-	PredicateSelector(f, selection_string_predicate(X...))
-end
-
-R(x) = PredicateSelector((model, cache) -> model.R,
-		selection_vector3d_predicate(x))
-
-V(x) = PredicateSelector((model, cache) -> model.V,
-		selection_vector3d_predicate(x))
-
-F(x) = PredicateSelector((model, cache) -> model.F,
-		selection_vector3d_predicate(x))
-
-function Mass(x)
-	f = function (model, cache)
-		get(model, :masses) do
-			elements = get!(cache, :elements) do
-				guesselements!(similar(model, String), model)
-			end
-			get!(cache, :masses) do
-				guessmasses!(similar(model, Float64), model.names, elements)
-			end
-		end
-	end
-	PredicateSelector(f, selection_real_predicate(x))
-end
-
-Charge(x) = PredicateSelector((model, cache) -> model.charges,
-		selection_real_predicate(x))
-
-BFactor(x) = PredicateSelector((model, cache) -> model.bfactors,
-		selection_real_predicate(x))
-
-Occupancy(x) = PredicateSelector((model, cache) -> model.occupancies,
-		selection_real_predicate(x))
-
-function SS(X...)
-	f = function (model, cache)
-		get(model, :SS) do
-			get!(cache, :SS) do
-				guessss!(fill("", length(model)), model)
-			end
-		end
-	end
-	PredicateSelector(f, selection_string_predicate(X...))
-end
-
-const Hydrogen = CachedSelector(Name(ishydrogen), :hydrogens)
-
-const Heavy = !Hydrogen
-
-const VSite = CachedSelector(Name(isvsite), :vsites)
-
-const Water = CachedSelector(ResName(iswater), :water)
-
-const Protein = CachedSelector(ResName(isprotein), :protein)
-
-const AcidResidue = CachedSelector(ResName(isacidresidue), :acidresidues)
-
-const BasicResidue = CachedSelector(ResName(isbasicresidue), :basicresidues)
-
-const ChargedResidue =
-		CachedSelector(ResName(ischargedresidue), :chargedresidues)
-
-const PolarResidue = CachedSelector(ResName(ispolarresidue), :polarresidues)
-
-const HydrophobicResidue =
-		CachedSelector(ResName(ishydrophobicresidue), :hydrophobicresidues)
-
-const MainChainName = CachedSelector(Name(ismainchainname), :mainchainnames)
-
-const MainChain = MainChainName & Protein
-
-const SideChain = !MainChainName & Protein
-
-const BackboneName = CachedSelector(Name(isbackbonename), :backbonenames)
-
-const Backbone = BackboneName & Protein
-
-const CAlpha = Name("CA") & Protein
-
-const Cα = CAlpha
-
-const Nter = Index(first, by=LocalResidue) & Protein
-
-const Cter = Index(last, by=LocalResidue) & Protein
-
-const NuclAcid = CachedSelector(ResName(isnuclacid), :nuclacid)
-
-const Lipid = CachedSelector(ResName(islipid), :lipid)
-
-const Ion = CachedSelector(ResName(ision), :ion)
-
-const Helix = CachedSelector(SS(ishelix), :helix)
-
-const AlphaHelix = SS(isalphahelix)
-
-const Helix310 = SS(ishelix310)
-
-const PiHelix = SS(ispihelix)
-
-const Turn = SS(isturn)
-
-const Sheet = CachedSelector(SS(issheet), :sheet)
-
-const Strand = SS(isstrand)
-
-const Bridge = SS(isbridge)
-
-const Loop = CachedSelector(SS(isloop), :loop)
-
-const Coil = SS(iscoil)
-
-const Bend = SS(isbend)
 
 module Selectors
 
 	using ..Dorothy
+	using ..Dorothy.Utils
 
 	export
-			Chain, Residue, LocalResidue, Fragment,
+			Chain, Residue, Fragment,
 
 			Map, Index, Expand, Restrict, Within,
 
@@ -713,60 +664,191 @@ module Selectors
 			AlphaHelix, Helix310, PiHelix, Turn, Sheet, Strand, Bridge, Loop,
 			Coil, Bend
 
-	const Chain = Dorothy.Chain
-	const Residue = Dorothy.Residue
-	const LocalResidue = Dorothy.LocalResidue
-	const Fragment = Dorothy.Fragment
-	const Map = Dorothy.Map
-	const Index = Dorothy.Index
-	const Expand = Dorothy.Expand
-	const Restrict = Dorothy.Restrict
-	const Within = Dorothy.Within
-	const Id = Dorothy.Id
-	const Name = Dorothy.Name
-	const ResId = Dorothy.ResId
-	const ResName = Dorothy.ResName
-	const ChainId = Dorothy.ChainId
-	const Element = Dorothy.Element
-	const R = Dorothy.R
-	const V = Dorothy.V
-	const F = Dorothy.F
-	const Mass = Dorothy.Mass
-	const Charge = Dorothy.Charge
-	const BFactor = Dorothy.BFactor
-	const Occupancy = Dorothy.Occupancy
-	const Charge = Dorothy.Charge
-	const SS = Dorothy.SS
-	const Hydrogen = Dorothy.Hydrogen
-	const Heavy = Dorothy.Heavy
-	const VSite = Dorothy.VSite
-	const Water = Dorothy.Water
-	const Protein = Dorothy.Protein
-	const AcidResidue = Dorothy.AcidResidue
-	const BasicResidue = Dorothy.BasicResidue
-	const ChargedResidue = Dorothy.ChargedResidue
-	const PolarResidue = Dorothy.PolarResidue
-	const HydrophobicResidue = Dorothy.HydrophobicResidue
-	const MainChain = Dorothy.MainChain
-	const SideChain = Dorothy.SideChain
-	const Backbone = Dorothy.Backbone
-	const CAlpha = Dorothy.CAlpha
-	const Cα = Dorothy.Cα
-	const Nter = Dorothy.Nter
-	const Cter = Dorothy.Cter
-	const NuclAcid = Dorothy.NuclAcid
-	const Lipid = Dorothy.Lipid
-	const Ion = Dorothy.Ion
-	const Helix = Dorothy.Helix
-	const AlphaHelix = Dorothy.AlphaHelix
-	const Helix310 = Dorothy.Helix310
-	const PiHelix = Dorothy.PiHelix
-	const Turn = Dorothy.Turn
-	const Sheet = Dorothy.Sheet
-	const Strand = Dorothy.Strand
-	const Bridge = Dorothy.Bridge
-	const Loop = Dorothy.Loop
-	const Coil = Dorothy.Coil
-	const Bend = Dorothy.Bend
+	const Model = Dorothy.ModelMode()
+	const Chain = Dorothy.ChainMode()
+	const Residue = Dorothy.ResidueMode()
+	const Particle = Dorothy.ParticleMode()
+	const Fragment = Dorothy.FragmentMode()
+
+	Base.:(!)(s::T) where {T<:Selector} = Dorothy.NotSelector{T}(s)
+
+	Base.:(&)(s1::T1, s2::T2) where {T1<:Selector,T2<:Selector} =
+			Dorothy.AndSelector{T1,T2}(s1, s2)
+
+	Base.:(|)(s1::T1, s2::T2) where {T1<:Selector,T2<:Selector} =
+			Dorothy.OrSelector{T1,T2}(s1, s2)
+
+	Base.:(⊻)(s1::T1, s2::T2) where {T1<:Selector,T2<:Selector} =
+			Dorothy.XorSelector{T1,T2}(s1, s2)
+
+	Map(map::AbstractVector{<:Bool}) = Dorothy.MapSelector(map)
+
+	function Map(view::MolecularModelView)
+		model = parent(view)
+		map = falses(length(model))
+		for i in parentindices(view)
+			map[i] = true
+		end
+		Dorothy.MapSelector(map)
+	end
+
+	Index(X; by::SelectionMode = Particle, ineach::SelectionMode = Model) =
+			Dorothy.IndexSelector(Dorothy.indexfunction(X), by, ineach)
+
+	Expand(s::Selector; by::SelectionMode) = Dorothy.ExpandSelector(s, by)
+
+	Restrict(s::Selector; by::SelectionMode) = Dorothy.RestrictSelector(s, by)
+
+	Within(d::Real; of) = Dorothy.WithinSelector(d, of, Particle)
+
+	Expand(s::Dorothy.WithinPositionSelector; by::SelectionMode) =
+			Dorothy.WithinPositionSelector(s.d, s.of, by)
+
+	Expand(s::Dorothy.WithinSelectionSelector; by::SelectionMode) =
+			Dorothy.WithinSelectionSelector(s.d, s.of, by)
+
+	Id(X...) = Dorothy.PropertySelector((model, cache) -> model.ids,
+			Dorothy.integerpredicate(X...))
+
+	Name(X...) = Dorothy.PropertySelector((model, cache) -> model.names,
+			Dorothy.stringpredicate(X...))
+
+	ResId(X...) = Dorothy.PropertySelector((model, cache) -> model.resids,
+			Dorothy.integerpredicate(X...))
+
+	ResName(X...) = Dorothy.PropertySelector((model, cache) -> model.resnames,
+			Dorothy.stringpredicate(X...))
+
+	ChainId(X...) = Dorothy.PropertySelector((model, cache) ->
+			get(model, :chainids, Repeat("", length(model))),
+			Dorothy.stringpredicate(X...))
+
+	function Element(X...)
+		f = function (model, cache)
+			get(model, :elements) do
+				get!(cache, :elements) do
+					guesselements!(similar(model, String), model)
+				end
+			end
+		end
+		Dorothy.PropertySelector(f, Dorothy.stringpredicate(X...))
+	end
+
+	R(x) = Dorothy.PropertySelector((model, cache) -> model.R,
+			Dorothy.vector3dpredicate(x))
+
+	V(x) = Dorothy.PropertySelector((model, cache) -> model.V,
+			Dorothy.vector3dpredicate(x))
+
+	F(x) = Dorothy.PropertySelector((model, cache) -> model.F,
+			Dorothy.vector3dpredicate(x))
+
+	function Mass(x)
+		f = function (model, cache)
+			get(model, :masses) do
+				elements = get!(cache, :elements) do
+					guesselements!(similar(model, String), model)
+				end
+				get!(cache, :masses) do
+					guessmasses!(similar(model, Float64), model.names, elements)
+				end
+			end
+		end
+		Dorothy.PropertySelector(f, Dorothy.realpredicate(x))
+	end
+
+	Charge(x) = Dorothy.PropertySelector((model, cache) -> model.charges,
+			Dorothy.realpredicate(x))
+
+	BFactor(x) = Dorothy.PropertySelector((model, cache) -> model.bfactors,
+			Dorothy.realpredicate(x))
+
+	Occupancy(x) = Dorothy.PropertySelector((model, cache) ->
+			model.occupancies, Dorothy.realpredicate(x))
+
+	function SS(X...)
+		f = function (model, cache)
+			get(model, :SS) do
+				get!(cache, :SS) do
+					guessss!(fill("", length(model)), model)
+				end
+			end
+		end
+		Dorothy.PropertySelector(f, Dorothy.stringpredicate(X...))
+	end
+
+	const Hydrogen = Dorothy.CachedSelector(Name(ishydrogen), :hydrogens)
+
+	const Heavy = !Hydrogen
+
+	const VSite = Dorothy.CachedSelector(Name(isvsite), :vsites)
+
+	const Water = Dorothy.CachedSelector(ResName(iswater), :water)
+
+	const Protein = Dorothy.CachedSelector(ResName(isprotein), :protein)
+
+	const AcidResidue =
+			Dorothy.CachedSelector(ResName(isacidresidue), :acidresidues)
+
+	const BasicResidue =
+			Dorothy.CachedSelector(ResName(isbasicresidue), :basicresidues)
+
+	const ChargedResidue =
+			Dorothy.CachedSelector(ResName(ischargedresidue), :chargedresidues)
+
+	const PolarResidue =
+			Dorothy.CachedSelector(ResName(ispolarresidue), :polarresidues)
+
+	const HydrophobicResidue =
+			Dorothy.CachedSelector(ResName(ishydrophobicresidue),
+			:hydrophobicresidues)
+
+	const MainChainName = Dorothy.CachedSelector(Name(Dorothy.ismainchainname),
+			:mainchainnames)
+
+	const MainChain = MainChainName & Protein
+
+	const SideChain = !MainChainName & Protein
+
+	const BackboneName =
+			Dorothy.CachedSelector(Name(Dorothy.isbackbonename), :backbonenames)
+
+	const Backbone = BackboneName & Protein
+
+	const CAlpha = Name("CA") & Protein
+
+	const Cα = CAlpha
+
+	const Nter = Index(1, by=Residue, ineach=Chain) & Protein
+
+	const Cter = Index(last, by=Residue, ineach=Chain) & Protein
+
+	const NuclAcid = Dorothy.CachedSelector(ResName(isnuclacid), :nuclacid)
+
+	const Lipid = Dorothy.CachedSelector(ResName(islipid), :lipid)
+
+	const Ion = Dorothy.CachedSelector(ResName(ision), :ion)
+
+	const Helix = Dorothy.CachedSelector(SS(ishelix), :helix)
+
+	const AlphaHelix = SS(isalphahelix)
+
+	const Helix310 = SS(ishelix310)
+
+	const PiHelix = SS(ispihelix)
+
+	const Turn = SS(isturn)
+
+	const Sheet = Dorothy.CachedSelector(SS(issheet), :sheet)
+
+	const Strand = SS(isstrand)
+
+	const Bridge = SS(isbridge)
+
+	const Loop = Dorothy.CachedSelector(SS(isloop), :loop)
+
+	const Coil = SS(iscoil)
+
+	const Bend = SS(isbend)
 
 end

@@ -64,7 +64,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 		cell = model.header.cell
 		R .= wrappos.(R, cell)
 		unwrap!(view(model, Protein).R, cell, UnwrapByGap(cell))
-		for residue in eachresidue(view(model, Water))
+		for residue in residues(view(model, Water))
 			unwrap!(residue.R, cell, UnwrapByExtent())
 		end
 		C = center(cell)
@@ -78,7 +78,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 		cell = model.header.cell
 		C = center(cell)
 		nearestpos!(view(model, Protein).R, C, cell)
-		for residue in eachresidue(view(model, Water))
+		for residue in residues(view(model, Water))
 			nearestpos!(residue.R, C, cell)
 		end
 		for atom in view(model, Ion)

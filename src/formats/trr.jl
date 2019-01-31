@@ -369,7 +369,6 @@ function encode_trr_array!(dest::Array{T}, src::AbstractArray{Float64},
 	dest
 end
 
-# BUG: The bug seems to be here.
 function encode_trr_array!(dest::Array{T}, src::AbstractVector{Vector3D},
 		factor::Real) where {T<:Real}
 	@inbounds @fastmath @simd for i in eachindex(src)

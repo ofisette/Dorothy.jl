@@ -10,8 +10,9 @@ datapath = joinpath(@__DIR__, "..", "data")
 	include("graphs.jl")
 	include("geometry.jl")
 	include("pbc.jl")
+
 	include("models.jl")
-	include("guessing.jl")
+	include("properties.jl")
 	include("selection.jl")
 
 	@testset "Formats" begin
@@ -19,6 +20,10 @@ datapath = joinpath(@__DIR__, "..", "data")
 		include("formats/pdb.jl")
 		include("formats/trr.jl")
 		include("formats/xtc.jl")
+		include("formats/ndx.jl")
 	end
+
+	include("topology.jl")
+	include("ss.jl")
 
 end # @testset
