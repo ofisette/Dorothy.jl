@@ -90,7 +90,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 
 	@testset "Fit line" begin
 		m = readf("$(datapath)/1BTL.pdb")
-		guessmasses!(m)
+		infermasses!(m)
 		h1 = view(m, 1:120) # First α helix
 		V = fitline(h1.R)
 		@test V ≈ [0.776711550200754, 0.3946883305177638, 0.4908566894092842]
@@ -100,7 +100,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 
 	@testset "Fit plane" begin
 		m = readf("$(datapath)/1BTL.pdb")
-		guessmasses!(m)
+		infermasses!(m)
 		h18 = view(m, [1:120; 1866:2032]) # First and last α helices
 		V = fitplane(h18.R)
 		@test V ≈ [-0.02187509375361663, 0.815568953125186, -0.578246282280793]

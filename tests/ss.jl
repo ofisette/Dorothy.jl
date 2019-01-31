@@ -14,7 +14,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 
 	@testset "Guessing SS" begin
 		m1 = readf("$(datapath)/1BTL.gro")
-		guessss!(m1)
+		inferss!(m1)
 		@test m1.SS == ["C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "H",
 				"H", "H", "H", "H", "H", "H", "H", "H", "H", "H", "H", "H", "H",
 				"H", "H", "H", "H", "H", "H", "H", "H", "H", "H", "H", "H", "H",

@@ -13,21 +13,21 @@ datapath = joinpath(@__DIR__, "..", "data")
 
 	@testset "Guessing elements" begin
 		m1 = readf("$(datapath)/1BTL.gro")
-		@test guesselement("CA", "CA") == "Ca"
-		@test guesselement("CL", "CL") == "Cl"
-		@test guesselement("CA", "ASP") == "C"
-		@test guesselement("N", "ASP") == "N"
-		@test_throws Exception guesselement("", "ASP")
-		guesselements!(m1)
+		@test inferelement("CA", "CA") == "Ca"
+		@test inferelement("CL", "CL") == "Cl"
+		@test inferelement("CA", "ASP") == "C"
+		@test inferelement("N", "ASP") == "N"
+		@test_throws Exception inferelement("", "ASP")
+		inferelements!(m1)
 		@test m1.elements[1:4] == ["N", "C", "C", "O"]
 	end
 
 	@testset "Guessing masses" begin
 		m1 = readf("$(datapath)/1BTL.gro")
-		@test guessmass("MN1", "") == 0.0
-		@test guessmass("HG11", "H") == 1.008
-		@test_throws Exception guessmass("", "")
-		guessmasses!(m1)
+		@test infermass("MN1", "") == 0.0
+		@test infermass("HG11", "H") == 1.008
+		@test_throws Exception infermass("", "")
+		infermasses!(m1)
 		@test m1.masses[1:4] == [14.00, 12.01, 12.01, 15.99]
 	end
 
