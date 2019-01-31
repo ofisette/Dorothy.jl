@@ -306,7 +306,7 @@ Base.:(==)(item1::MulticollectionItem, item2::MulticollectionItem) =
 function Base.resize!(C::Multicollection, n::Integer)
 	@boundscheck n >= 0 || error("expected positive length")
 	for val in values(C.D)
-		resize!(collunwrap(val), n)
+		resize!(val, n)
 	end
 	C.n = n
 	C
@@ -314,7 +314,7 @@ end
 
 function Base.empty!(C::Multicollection)
 	for val in values(C.D)
-		empty!(collunwrap(val))
+		empty!(val)
 	end
 	C.n = 0
 	C
@@ -325,7 +325,7 @@ Base.deleteat!(C::Multicollection, i::Integer) = deleteat!(C, [i])
 @inline function Base.deleteat!(C::Multicollection, I::AbstractArray{<:Integer})
 	@boundscheck checkindexseries(C, I)
 	for val in values(C.D)
-		deleteat!(collunwrap(val), I)
+		deleteat!(val, I)
 	end
 	C.n -= length(I)
 	C
@@ -367,7 +367,7 @@ function Base.splice!(C::Multicollection, range::UnitRange{<:Integer},
 		replaced = view(C, range)
 		for (key, val) in pairs(C.D)
 			get!(spliced, key, replaced[key])
-			splice!(collunwrap(val), range, replacement[key])
+			splice!(val, range, replacement[key])
 		end
 	end
 	C.n += nreplacement - nreplaced
@@ -399,12 +399,6 @@ function Base.insert!(C::Multicollection, i::Integer,
 	splice!(C, i:i-1, src)
 	C
 end
-
-collunwrap(x) = x
-
-collunwrap(A::FixedArray) = A.A
-
-collunwrap(G::FixedGraph) = G.G
 
 function collval end
 

@@ -61,99 +61,95 @@ Base.similar(model::ParticleCollection, n::Integer) = MolecularModel(n)
 function Multicollections.collval(::MolecularModel, ::Val{:topology},
 		n::Integer, v::AbstractGraph)
 	@boundscheck length(v) == n || error("expected $(n)-index graph")
-	merge!(FixedGraph(Graph(n)), v)
+	merge!(Graph(n), v)
 end
 
-function Multicollections.collval(::MolecularModel, ::Val{:topology},
-		n::Integer, V::AbstractVector)
-	G = Graph(n)
-	pair!(G, [(i, j) for (i, j) in V]...)
-end
+Multicollections.collval(::MolecularModel, ::Val{:topology}, n::Integer,
+		V::AbstractVector) = pair!(Graph(n), V...)
 
 Multicollections.collval(::MolecularModel, ::Val{:ids}, n::Integer, v) =
-		(FixedArray(Vector{Int}(undef, n)) .= v)
+		(Vector{Int}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:ids}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{Int}(undef, n))
+		::UndefInitializer) = Vector{Int}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:names}, n::Integer, v) =
-		(FixedArray(Vector{String}(undef, n)) .= v)
+		(Vector{String}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:names}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{String}(undef, n))
+		::UndefInitializer) = Vector{String}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:resids}, n::Integer, v) =
-		(FixedArray(Vector{Int}(undef, n)) .= v)
+		(Vector{Int}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:resids}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{Int}(undef, n))
+		::UndefInitializer) = Vector{Int}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:resnames}, n::Integer, v) =
-		(FixedArray(Vector{String}(undef, n)) .= v)
+		(Vector{String}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:resnames}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{String}(undef, n))
+		::UndefInitializer) = Vector{String}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:chainids}, n::Integer, v) =
-		(FixedArray(Vector{String}(undef, n)) .= v)
+		(Vector{String}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:chainids}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{String}(undef, n))
+		::UndefInitializer) = Vector{String}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:elements}, n::Integer, v) =
-		(FixedArray(Vector{String}(undef, n)) .= v)
+		(Vector{String}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:elements}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{String}(undef, n))
+		::UndefInitializer) = Vector{String}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:R}, n::Integer, v) =
-		(FixedArray(Vector{Vector3D}(undef, n)) .= v)
+		(Vector{Vector3D}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:R}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{Vector3D}(undef, n))
+		::UndefInitializer) = Vector{Vector3D}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:V}, n::Integer, v) =
-		(FixedArray(Vector{Vector3D}(undef, n)) .= v)
+		(Vector{Vector3D}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:V}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{Vector3D}(undef, n))
+		::UndefInitializer) = Vector{Vector3D}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:F}, n::Integer, v) =
-		(FixedArray(Vector{Vector3D}(undef, n)) .= v)
+		(Vector{Vector3D}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:F}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{Vector3D}(undef, n))
+		::UndefInitializer) = Vector{Vector3D}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:masses}, n::Integer, v) =
-		(FixedArray(Vector{Float64}(undef, n)) .= v)
+		(Vector{Float64}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:masses}, n::Integer,
-		::UndefInitializer) =
-		FixedArray(Vector{Float64}(undef, n))
+		::UndefInitializer) = Vector{Float64}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:charges}, n::Integer, v) =
-		(FixedArray(Vector{Float64}(undef, n)) .= v)
+		(Vector{Float64}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:charges}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{Float64}(undef, n))
+		::UndefInitializer) = Vector{Float64}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:bfactors}, n::Integer, v) =
-		(FixedArray(Vector{Float64}(undef, n)) .= v)
+		(Vector{Float64}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:bfactors}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{Float64}(undef, n))
+		::UndefInitializer) = Vector{Float64}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:occupancies}, n::Integer, v) =
-		(FixedArray(Vector{Float64}(undef, n)) .= v)
+		(Vector{Float64}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:occupancies}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{Float64}(undef, n))
+		::UndefInitializer) = Vector{Float64}(undef, n)
 
 Multicollections.collval(::MolecularModel, ::Val{:SS}, n::Integer, v) =
-		(FixedArray(Vector{String}(undef, n)) .= v)
+		(Vector{String}(undef, n) .= v)
 
 Multicollections.collval(::MolecularModel, ::Val{:SS}, n::Integer,
-		::UndefInitializer) = FixedArray(Vector{String}(undef, n))
+		::UndefInitializer) = Vector{String}(undef, n)
 
 Multicollections.itemtocollprop(::Particle, ::Val{:id}) = :ids
 Multicollections.colltoitemprop(::Particle, ::Val{:ids}) = :id

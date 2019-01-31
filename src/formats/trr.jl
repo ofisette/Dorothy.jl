@@ -312,8 +312,8 @@ function decode_trr_array!(dest::Array{Float64}, src::Array{<:Real},
 	dest
 end
 
-function decode_trr_array!(dest::FixedArray{Vector{Vector3D}},
-		src::Array{<:Real}, factor::Real)
+function decode_trr_array!(dest::Vector{Vector3D}, src::Array{<:Real},
+		factor::Real)
 	@inbounds @fastmath @simd for i in eachindex(dest)
 		d = (i-1) * 3
 		x = ntoh(src[d+1]) * factor
