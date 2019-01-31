@@ -727,7 +727,7 @@ module Selectors
 		f = function (model, cache)
 			get(model, :elements) do
 				get!(cache, :elements) do
-					guesselements!(similar(model, String), model)
+					inferelements!(similar(model, String), model)
 				end
 			end
 		end
@@ -747,10 +747,10 @@ module Selectors
 		f = function (model, cache)
 			get(model, :masses) do
 				elements = get!(cache, :elements) do
-					guesselements!(similar(model, String), model)
+					inferelements!(similar(model, String), model)
 				end
 				get!(cache, :masses) do
-					guessmasses!(similar(model, Float64), model.names, elements)
+					infermasses!(similar(model, Float64), model.names, elements)
 				end
 			end
 		end
@@ -770,7 +770,7 @@ module Selectors
 		f = function (model, cache)
 			get(model, :SS) do
 				get!(cache, :SS) do
-					guessss!(fill("", length(model)), model)
+					inferss!(fill("", length(model)), model)
 				end
 			end
 		end

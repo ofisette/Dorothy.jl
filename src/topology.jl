@@ -5,22 +5,22 @@ using ..Dorothy.Geometry
 using ..Dorothy.Graphs
 using ..Dorothy.PBC
 
-export guesstopology!
+export infertopology!
 
-abstract type TopologyGuessStrategy end
+abstract type TopologyInferenceStrategy end
 
-guesstopology!(model::ParticleCollection) =
-		guesstopology!(get!(model, :topology, []), model)
+infertopology!(model::ParticleCollection) =
+		infertopology!(get!(model, :topology, []), model)
 
-guesstopology!(model::ParticleCollection, strategy::TopologyGuessStrategy) =
-		guesstopology!(get!(model, :topology, []), model, strategy)
+infertopology!(model::ParticleCollection, strategy::TopologyInferenceStrategy) =
+		infertopology!(get!(model, :topology, []), model, strategy)
 
-struct TopologyByCovalentRadius
+struct TopologyFromCovalentRadii
 	radii::Dict{String,Float64}
 	tol::Float64
 	dmax::Float64
 
-	function TopologyByCovalentRadius(
+	function TopologyFromCovalentRadii(
 			radii::AbstractDict{<:AbstractString,<:Real} = covalent_radii,
 			tol::Real = 0.1)
 		@boundscheck tol > 0.0 || error("expected strictly positive tolerance")
@@ -29,15 +29,15 @@ struct TopologyByCovalentRadius
 	end
 end
 
-guesstopology!(topology::AbstractGraph, model::ParticleCollection) =
-		guesstopology!(topology, model, TopologyByCovalentRadius())
+infertopology!(topology::AbstractGraph, model::ParticleCollection) =
+		infertopology!(topology, model, TopologyFromCovalentRadii())
 
-function guesstopology!(topology::AbstractGraph, model::ParticleCollection,
-		strategy::TopologyByCovalentRadius)
+function infertopology!(topology::AbstractGraph, model::ParticleCollection,
+		strategy::TopologyFromCovalentRadii)
 	@boundscheck length(topology) == length(model) ||
 			error("size mismatch between model and output array")
 	elements = get(model, :elements) do
-		guesselements!(similar(model, String), model)
+		inferelements!(similar(model, String), model)
 	end
 	cell = get(model.header, :cell, nothing)
 	Rw, Kw = pbcpos(model.R, cell)

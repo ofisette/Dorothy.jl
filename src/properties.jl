@@ -414,27 +414,27 @@ const iscoil = namematcher(coil_ss_pattern)
 
 const isbend = namematcher(bend_ss_pattern)
 
-function guesselement(name::AbstractString, resname::AbstractString)
+function inferelement(name::AbstractString, resname::AbstractString)
 	if ismonatomicion(resname)
 		titlecase(resname)
 	elseif isempty(name)
-		error("could not guess element from name or resname")
+		error("could not infer element from name or resname")
 	else
 		name[1:1]
 	end
 end
 
-guesselements!(model::ParticleCollection) =
-		guesselements!(get!(model, :elements, undef), model)
+inferelements!(model::ParticleCollection) =
+		inferelements!(get!(model, :elements, undef), model)
 
-function guesselements!(elements::AbstractVector{<:AbstractString},
+function inferelements!(elements::AbstractVector{<:AbstractString},
 		model::ParticleCollection)
 	@boundscheck length(elements) == length(model) ||
 			error("size mismatch between model and output array")
-	guesselements!(elements, model.names, model.resnames)
+	inferelements!(elements, model.names, model.resnames)
 end
 
-function guesselements!(elements::AbstractVector{<:AbstractString},
+function inferelements!(elements::AbstractVector{<:AbstractString},
 		names::AbstractVector{<:AbstractString},
 		resnames::AbstractVector{<:AbstractString})
 	@boundscheck begin
@@ -442,32 +442,32 @@ function guesselements!(elements::AbstractVector{<:AbstractString},
 				error("size mismatch between property arrays")
 	end
 	for i in eachindex(elements)
-		elements[i] = guesselement(names[i], resnames[i])
+		elements[i] = inferelement(names[i], resnames[i])
 	end
 	elements
 end
 
-function guessmass(name::AbstractString, element::AbstractString)
+function infermass(name::AbstractString, element::AbstractString)
 	get(standard_atomic_weights, element) do
 		if isvsite(name)
 			0.0
 		else
-			error("could not guess mass from name or element")
+			error("could not infer mass from name or element")
 		end
 	end
 end
 
-guessmasses!(model::ParticleCollection) =
-		guessmasses!(get!(model, :masses, undef), model)
+infermasses!(model::ParticleCollection) =
+		infermasses!(get!(model, :masses, undef), model)
 
-function guessmasses!(masses::AbstractVector{<:Real}, model::ParticleCollection)
+function infermasses!(masses::AbstractVector{<:Real}, model::ParticleCollection)
 	@boundscheck length(masses) == length(model) ||
 			error("size mismatch between model and output array")
-	guessmasses!(masses, model.names,
-			get(model, :elements, guesselements!(model)))
+	infermasses!(masses, model.names,
+			get(model, :elements, inferelements!(model)))
 end
 
-function guessmasses!(masses::AbstractVector{<:Real},
+function infermasses!(masses::AbstractVector{<:Real},
 		names::AbstractVector{<:AbstractString},
 		elements::AbstractVector{<:AbstractString})
 	@boundscheck begin
@@ -475,7 +475,7 @@ function guessmasses!(masses::AbstractVector{<:Real},
 				error("size mismatch between property arrays")
 	end
 	for i in eachindex(masses)
-		masses[i] = guessmass(names[i], elements[i])
+		masses[i] = infermass(names[i], elements[i])
 	end
 	masses
 end

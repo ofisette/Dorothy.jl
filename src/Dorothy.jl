@@ -26,7 +26,7 @@ export
 		ishelix310, ispihelix, isturn, isstrand, isbridge, iscoil, isbend,
 		ishelix, issheet, isloop,
 
-		guesselement, guesselements!, guessmass, guessmasses!,
+		inferelement, inferelements!, infermass, infermasses!,
 
 		SelectionCache, emptyframe!, SelectionMode, Selector, Selectors,
 

@@ -6,25 +6,25 @@ using ..Dorothy.PDB
 using ..Dorothy.Selectors
 using ..Dorothy.Utils
 
-export guessss!
+export inferss!
 
-abstract type SSGuessStrategy end
+abstract type SSInferenceStrategy end
 
-guessss!(model::ParticleCollection) = guessss!(get!(model, :SS, ""), model)
+inferss!(model::ParticleCollection) = inferss!(get!(model, :SS, ""), model)
 
-guessss!(model::ParticleCollection, strategy::SSGuessStrategy) =
-		guessss!(get!(model, :SS, ""), model, strategy)
+inferss!(model::ParticleCollection, strategy::SSInferenceStrategy) =
+		inferss!(get!(model, :SS, ""), model, strategy)
 
-struct SSByStride <: SSGuessStrategy
+struct SSByStride <: SSInferenceStrategy
 	stridepath::String
 
 	SSByStride(stridepath::AbstractString = "stride") = new(stridepath)
 end
 
-guessss!(SS::AbstractVector{<:AbstractString}, model::ParticleCollection) =
-		guessss!(SS, model, SSByStride())
+inferss!(SS::AbstractVector{<:AbstractString}, model::ParticleCollection) =
+		inferss!(SS, model, SSByStride())
 
-function guessss!(SS::AbstractVector{<:AbstractString},
+function inferss!(SS::AbstractVector{<:AbstractString},
 		model::ParticleCollection, strategy::SSByStride)
 	@boundscheck length(SS) == length(model) ||
 			error("size mismatch between model and output array")
