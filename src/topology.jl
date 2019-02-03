@@ -8,7 +8,7 @@ using ..Dorothy.PBC
 using ..Dorothy.Properties
 using ..Dorothy.Utils
 
-export infertopology!
+export TopologyInferenceStrategy, infertopology!, TopologyFromCovalentRadii
 
 abstract type TopologyInferenceStrategy end
 

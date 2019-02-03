@@ -22,7 +22,7 @@ using ..Dorothy.PDB
 using ..Dorothy.Selectors
 using ..Dorothy.Utils
 
-export inferss!
+export SSInferenceStrategy, inferss!, SSByStride
 
 abstract type SSInferenceStrategy end
 
@@ -34,7 +34,7 @@ inferss!(model::ParticleCollection, strategy::SSInferenceStrategy) =
 struct SSByStride <: SSInferenceStrategy
 	stridepath::String
 
-	SSByStride(stridepath::AbstractString = "stride") = new(stridepath)
+	SSByStride(; stridepath::AbstractString = "stride") = new(stridepath)
 end
 
 inferss!(SS::AbstractVector{<:AbstractString}, model::ParticleCollection) =

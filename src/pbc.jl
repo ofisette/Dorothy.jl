@@ -4,6 +4,7 @@ module PBC
 
 using LinearAlgebra
 using ..Dorothy.Geometry
+using ..Dorothy.Properties
 using ..Dorothy.Utils
 using StaticArrays
 
@@ -565,7 +566,8 @@ struct UnwrapByGap <: UnwrapStrategy
 	D::Vector3D
 	buffer::Vector{Vector3D}
 
-	function UnwrapByGap(cell::TriclinicPBC; d::Real = 2.5)
+	function UnwrapByGap(cell::TriclinicPBC;
+			d::Real = maximum(values(covalent_radii)))
 		(a,b,c), angles = pbcgeometry(cell)
 		new(Vector3D(d,d,d) ./ Vector3D(a,b,c), Vector3D[])
 	end
