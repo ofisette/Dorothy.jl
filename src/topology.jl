@@ -43,22 +43,22 @@ function infertopology!(topology::AbstractGraph, model::ParticleCollection,
 	elements = infermissingelements(model)
 	cell = get(model.header, :cell, nothing)
 	Rw, Kw = pbcpos(model.R, cell)
-	pg = posgrid(Rw, Kw, cell, strategy.dmax)
-	topcov!(topology, elements, Rw, Kw, cell, pg, strategy.radii, strategy.rdef,
-			strategy.tol)
+	lattice = proxilattice(Kw, cell, strategy.dmax)
+	topcov!(topology, elements, Rw, Kw, cell, lattice, strategy.radii,
+			strategy.rdef, strategy.tol)
 end
 
 function topcov!(topology::AbstractGraph,
 		elements::AbstractVector{<:AbstractString},
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
-		cell::Union{TriclinicPBC,Nothing}, pg::PositionGrid,
+		cell::Union{TriclinicPBC,Nothing}, lattice::ProximityLattice,
 		radii::AbstractDict{<:AbstractString,<:Real}, rdef::Real, tol::Real)
 	@boundscheck length(topology) == length(elements) == length(Rw) ==
 			length(Kw) || error("size mismatch between property arrays")
 	tolf = 1.0 + tol
 	J = Int[]
 	for i in eachindex(Rw)
-		for j in findnear!(J, pg, i)
+		for j in findnear!(J, lattice, i)
 			if i != j && !((i, j) in topology)
 				ri = get(radii, elements[i], rdef)
 				rj = get(radii, elements[j], rdef)

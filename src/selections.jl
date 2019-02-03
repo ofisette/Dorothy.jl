@@ -56,20 +56,46 @@ function getpbcpos(R::AbstractVector{Vector3D},
 	end
 end
 
-function getposgrid(Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
-		cell::Union{TriclinicPBC,Nothing}, d::Real, cache::SelectionCache)
-	grids = get!(getframe(cache), :posgrids) do
-		Dict{Int,PositionGrid}()
+function getlattices(cache::SelectionCache)
+	get!(getframe(cache), :lattices) do
+		Dict{Int,ProximityLattice}()
 	end
+end
+
+function getgrid(f, d::Integer, N::Tuple{Integer,Integer,Integer},
+		cache::SelectionCache)
+	buffers = get!(cache, :gridbuffers) do
+		Dict{Int,Dict{Tuple{Int,Int,Int},Grid3D}}()
+	end
+	dbuffers = get!(buffers, d) do
+		Dict{Tuple{Int,Int,Int},Grid3D}()
+	end
+	get!(f, dbuffers, N)
+end
+
+function getproxilattice(R::AbstractVector{Vector3D}, cell::Nothing,
+		d::Real, cache::SelectionCache)
 	ceild = ceil(Int, d)
-	get!(grids, ceild) do
-		buffers = get!(cache, :posgridbuffers) do
-			Dict{Int,PositionGrid}()
+	get!(getlattices(cache), ceild) do
+		N, O, D = proxiparams(R, ceild)
+		grid = getgrid(ceild, N, cache) do
+			NonperiodicGrid3D(N...)
 		end
-		buffer = get!(buffers, ceild) do
-			posgrid(cell)
+		empty!(grid)
+		fill!(NonperiodicProximityLattice(grid, O, D), R)
+	end
+end
+
+function getproxilattice(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC,
+		d::Real, cache::SelectionCache)
+	ceild = ceil(Int, d)
+	get!(getlattices(cache), ceild) do
+		N, D = proxiparams(cell, ceild)
+		grid = getgrid(ceild, N, cache) do
+			PeriodicGrid3D(N...)
 		end
-		posgrid!(buffer, Rw, Kw, cell, ceild)
+		empty!(grid)
+		fill!(PeriodicProximityLattice(grid, D), Kw)
 	end
 end
 
@@ -530,9 +556,9 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 	end
 	cell = get(model.header, :cell, nothing)
 	Rw, Kw = getpbcpos(model.R, cell, cache)
-	pg = getposgrid(Rw, Kw, cell, s.d, cache)
+	lattice = getproxilattice(Kw, cell, s.d, cache)
 	Rref = s.of(model, cache)
-	selectwithinpos!(work, s.d, s.by, Rw, Kw, Rref, cell, pg, model, cache)
+	selectwithinpos!(work, s.d, s.by, Rw, Kw, Rref, cell, lattice, model, cache)
 	for i in subset
 		results[i] = work[i]
 	end
@@ -541,18 +567,19 @@ end
 selectwithinpos!(results::BitVector, d::Real, by::ParticleMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		pg::PositionGrid, model::ParticleCollection, cache::SelectionCache) =
-		selectwithinpos0!(results, d, Rw, Kw, Rref, cell, pg)
+		lattice::ProximityLattice, model::ParticleCollection,
+		cache::SelectionCache) =
+		selectwithinpos0!(results, d, Rw, Kw, Rref, cell, lattice)
 
 function selectwithinpos0!(results::BitVector, d::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		pg::PositionGrid)
+		lattice::ProximityLattice)
 	d2 = d^2
 	J = Int[]
 	for Rrefi in Rref
 		Rrefiw, Krefiw = pbcpos(Rrefi, cell)
-		for j in findnear!(J, pg, Rrefiw, Krefiw)
+		for j in findnear!(J, lattice, Krefiw)
 			if ! results[j]
 				if sqmindist(Rw[j], Kw[j], Rrefiw, Krefiw, cell) <= d2
 					results[j] = true
@@ -565,20 +592,21 @@ end
 selectwithinpos!(results::BitVector, d::Real, by::SelectionMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		pg::PositionGrid, model::ParticleCollection, cache::SelectionCache) =
-		selectwithinpos1!(results, d, Rw, Kw, Rref, cell, pg,
-		geth2(model, by, cache)...)
+		lattice::ProximityLattice, model::ParticleCollection,
+		cache::SelectionCache) = selectwithinpos1!(results, d, Rw, Kw, Rref,
+		cell, lattice, geth2(model, by, cache)...)
 
 function selectwithinpos1!(results::BitVector, d::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		pg::PositionGrid, tree::AbstractVector{<:AbstractVector{<:Integer}},
+		lattice::ProximityLattice,
+		tree::AbstractVector{<:AbstractVector{<:Integer}},
 		paths::AbstractVector{<:Integer})
 	d2 = d^2
 	J = Int[]
 	for Rrefi in Rref
 		Rrefiw, Krefiw = pbcpos(Rrefi, cell)
-		for j in findnear!(J, pg, Rrefiw, Krefiw)
+		for j in findnear!(J, lattice, Krefiw)
 			if ! results[j]
 				if sqmindist(Rw[j], Kw[j], Rrefiw, Krefiw, cell) <= d2
 					for k in tree[paths[j]]
@@ -621,9 +649,9 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 	end
 	cell = get(model.header, :cell, nothing)
 	Rw, Kw = getpbcpos(model.R, cell, cache)
-	pg = getposgrid(Rw, Kw, cell, s.d, cache)
+	lattice = getproxilattice(Kw, cell, s.d, cache)
 	Iref = findall(map(s.of, model, cache))
-	selectwithinsel!(work, s.d, s.by, Rw, Kw, Iref, cell, pg, model, cache)
+	selectwithinsel!(work, s.d, s.by, Rw, Kw, Iref, cell, lattice, model, cache)
 	for i in subset
 		results[i] = work[i]
 	end
@@ -632,17 +660,18 @@ end
 selectwithinsel!(results::BitVector, d::Real, by::ParticleMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
-		pg::PositionGrid, model::ParticleCollection, cache::SelectionCache) =
-		selectwithinsel0!(results, d, Rw, Kw, Iref, cell, pg)
+		lattice::ProximityLattice, model::ParticleCollection,
+		cache::SelectionCache) =
+		selectwithinsel0!(results, d, Rw, Kw, Iref, cell, lattice)
 
 function selectwithinsel0!(results::BitVector, d::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
-		pg::PositionGrid)
+		lattice::ProximityLattice)
 	d2 = d^2
 	J = Int[]
 	for i in Iref
-		for j in findnear!(J, pg, i)
+		for j in findnear!(J, lattice, i)
 			if ! results[j]
 				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= d2
 					results[j] = true
@@ -655,19 +684,20 @@ end
 selectwithinsel!(results::BitVector, d::Real, by::SelectionMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
-		pg::PositionGrid, model::ParticleCollection, cache::SelectionCache) =
-		selectwithinsel1!(results, d, Rw, Kw, Iref, cell, pg,
-		geth2(model, by, cache)...)
+		lattice::ProximityLattice, model::ParticleCollection,
+		cache::SelectionCache) = selectwithinsel1!(results, d, Rw, Kw, Iref,
+		cell, lattice, geth2(model, by, cache)...)
 
 function selectwithinsel1!(results::BitVector, d::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
-		pg::PositionGrid, tree::AbstractVector{<:AbstractVector{<:Integer}},
+		lattice::ProximityLattice,
+		tree::AbstractVector{<:AbstractVector{<:Integer}},
 		paths::AbstractVector{<:Integer})
 	d2 = d^2
 	J = Int[]
 	for i in Iref
-		for j in findnear!(J, pg, i)
+		for j in findnear!(J, lattice, i)
 			if ! results[j]
 				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= d2
 					for k in tree[paths[j]]
