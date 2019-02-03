@@ -1,4 +1,19 @@
-module SS
+# Protein secondary structure
+
+# SS symbols
+#     Helix
+#         H: alpha helix
+#         G: 3_10 helix
+#         I: pi helix
+#         T: turn
+#     Sheet
+#         E: strand
+#         B: bridge
+#     Loop
+#         C: coil
+#         S: bend
+
+module SecondaryStructure
 
 using ..Dorothy
 using ..Dorothy.Geometry

@@ -348,19 +348,9 @@ const polyatomic_ion_resname_pattern =
 const ion_resname_pattern =
 		[monatomic_ion_resname_pattern..., polyatomic_ion_resname_pattern...]
 
-const alphahelix_ss_pattern = "H"
-const helix310_ss_pattern = "G"
-const pihelix_ss_pattern = "I"
-const turn_ss_pattern = "T"
-const strand_ss_pattern = "E"
-const bridge_ss_pattern = "B"
-const coil_ss_pattern = "C"
-const bend_ss_pattern = "S"
-
-const helix_ss_pattern = [alphahelix_ss_pattern, helix310_ss_pattern,
-		pihelix_ss_pattern, turn_ss_pattern]
-const sheet_ss_pattern = [strand_ss_pattern, bridge_ss_pattern]
-const loop_ss_pattern = [coil_ss_pattern, bend_ss_pattern]
+const helix_ss_pattern = ["H", "G", "I", "T"]
+const sheet_ss_pattern = ["E", "B"]
+const loop_ss_pattern = ["C", "S"]
 
 const isvsite = namematcher(vsite_name_pattern)
 
@@ -407,25 +397,25 @@ const ispolyatomicion = namematcher(polyatomic_ion_resname_pattern)
 
 const ishelix = namematcher(helix_ss_pattern)
 
-const isalphahelix = namematcher(alphahelix_ss_pattern)
+const isalphahelix = namematcher("H")
 
-const ishelix310 = namematcher(helix310_ss_pattern)
+const ishelix310 = namematcher("G")
 
-const ispihelix = namematcher(pihelix_ss_pattern)
+const ispihelix = namematcher("I")
 
-const isturn = namematcher(turn_ss_pattern)
+const isturn = namematcher("T")
 
 const issheet = namematcher(sheet_ss_pattern)
 
-const isstrand = namematcher(strand_ss_pattern)
+const isstrand = namematcher("E")
 
-const isbridge = namematcher(bridge_ss_pattern)
+const isbridge = namematcher("B")
 
 const isloop = namematcher(loop_ss_pattern)
 
-const iscoil = namematcher(coil_ss_pattern)
+const iscoil = namematcher("C")
 
-const isbend = namematcher(bend_ss_pattern)
+const isbend = namematcher("S")
 
 function inferelement(name::AbstractString, resname::AbstractString)
 	if ismonatomicion(resname)

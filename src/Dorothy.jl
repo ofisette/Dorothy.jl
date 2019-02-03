@@ -56,7 +56,7 @@ using .NDX
 include("ss.jl")
 include("topology.jl")
 
-using .SS
+using .SecondaryStructure
 using .Topology
 
 function __init__()

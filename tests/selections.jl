@@ -1,5 +1,6 @@
 using Test
 using Dorothy
+using Dorothy.Hierarchies
 using .Selectors
 using Formats
 using FormatStreams

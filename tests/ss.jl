@@ -4,7 +4,7 @@ using Dorothy
 using Dorothy.Graphs
 using Dorothy.Geometry
 using Dorothy.PBC
-using Dorothy.SS
+using Dorothy.SecondaryStructure
 using Formats
 using FormatStreams
 
