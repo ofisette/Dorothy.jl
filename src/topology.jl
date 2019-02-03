@@ -4,6 +4,7 @@ using ..Dorothy
 using ..Dorothy.Geometry
 using ..Dorothy.Graphs
 using ..Dorothy.PBC
+using ..Dorothy.Utils
 
 export infertopology!
 
@@ -15,17 +16,18 @@ infertopology!(model::ParticleCollection) =
 infertopology!(model::ParticleCollection, strategy::TopologyInferenceStrategy) =
 		infertopology!(get!(model, :topology, []), model, strategy)
 
-struct TopologyFromCovalentRadii
+struct TopologyFromCovalentRadii <: TopologyInferenceStrategy
 	radii::Dict{String,Float64}
+	rdef::Float64
 	tol::Float64
 	dmax::Float64
 
-	function TopologyFromCovalentRadii(
+	function TopologyFromCovalentRadii(;
 			radii::AbstractDict{<:AbstractString,<:Real} = covalent_radii,
-			tol::Real = 0.1)
-		@boundscheck tol > 0.0 || error("expected strictly positive tolerance")
+			rdef::Real = radii["C"], tol::Real = 0.2)
+		@boundscheck tol >= 0.0 || error("expected positive tolerance")
 		dmax = (1.0+tol) * 2.0 * maximum(values(radii))
-		new(radii, tol, dmax)
+		new(radii, rdef, tol, dmax)
 	end
 end
 
@@ -36,31 +38,30 @@ function infertopology!(topology::AbstractGraph, model::ParticleCollection,
 		strategy::TopologyFromCovalentRadii)
 	@boundscheck length(topology) == length(model) ||
 			error("size mismatch between model and output array")
-	elements = get(model, :elements) do
-		inferelements!(similar(model, String), model)
-	end
+	elements = infermissingelements(model)
 	cell = get(model.header, :cell, nothing)
 	Rw, Kw = pbcpos(model.R, cell)
 	pg = posgrid(Rw, Kw, cell, strategy.dmax)
-	topcov!(topology, elements, Rw, Kw, cell, pg, strategy.tol, strategy.radii)
+	topcov!(topology, elements, Rw, Kw, cell, pg, strategy.radii, strategy.rdef,
+			strategy.tol)
 end
 
 function topcov!(topology::AbstractGraph,
 		elements::AbstractVector{<:AbstractString},
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
-		cell::Union{TriclinicPBC,Nothing}, pg::PositionGrid, tol::Real,
-		radii::AbstractDict{<:AbstractString,<:Real})
+		cell::Union{TriclinicPBC,Nothing}, pg::PositionGrid,
+		radii::AbstractDict{<:AbstractString,<:Real}, rdef::Real, tol::Real)
 	@boundscheck length(topology) == length(elements) == length(Rw) ==
 			length(Kw) || error("size mismatch between property arrays")
+	tolf = 1.0 + tol
 	J = Int[]
 	for i in eachindex(Rw)
 		for j in findnear!(J, pg, i)
-			if i != j && elements[i] != "" && elements[j] != ""
-				ri = radii[elements[i]]
-				rj = radii[elements[j]]
-				if mindist(Rw[i], Kw[i], Rw[j], Kw[j], cell) <
-						(1.0+tol) * (ri+rj)
-					pair!(topology, (i,j))
+			if i != j && !((i, j) in topology)
+				ri = get(radii, elements[i], rdef)
+				rj = get(radii, elements[j], rdef)
+				if mindist(Rw[i], Kw[i], Rw[j], Kw[j], cell) < tolf * (ri+rj)
+					pair!(topology, (i, j))
 				end
 			end
 		end

@@ -287,8 +287,6 @@ function namematcher(S::AbstractVector{<:AbstractString})
 	end
 end
 
-const hydrogen_name_pattern = "H*"
-
 const vsite_name_pattern = ["MC*", "MN*", "MTRP*", "MW", "LP"]
 
 const water_resname_pattern = ["HOH", "SOL", "TIP*", "WAT*"]
@@ -344,10 +342,6 @@ const helix_ss_pattern = [alphahelix_ss_pattern, helix310_ss_pattern,
 		pihelix_ss_pattern, turn_ss_pattern]
 const sheet_ss_pattern = [strand_ss_pattern, bridge_ss_pattern]
 const loop_ss_pattern = [coil_ss_pattern, bend_ss_pattern]
-
-const ishydrogen = namematcher(hydrogen_name_pattern)
-
-isheavy(name) = !ishydrogen(name)
 
 const isvsite = namematcher(vsite_name_pattern)
 
@@ -443,6 +437,38 @@ function inferelements!(elements::AbstractVector{<:AbstractString},
 	end
 	for i in eachindex(elements)
 		elements[i] = inferelement(names[i], resnames[i])
+	end
+	elements
+end
+
+function infermissingelements(model::ParticleCollection)
+	elements = get(model, :elements) do
+		Repeated("", length(model))
+	end
+	infermissingelements!(collect(elements), model)
+end
+
+infermissingelements!(model::ParticleCollection) =
+		infermissingelements!(model.elements, model)
+
+function infermissingelements!(elements::AbstractVector{<:AbstractString},
+		model::ParticleCollection)
+	@boundscheck length(elements) == length(model) ||
+			error("size mismatch between model and output array")
+	inferelements!(elements, model.names, model.resnames)
+end
+
+function infermissingelements!(elements::AbstractVector{<:AbstractString},
+		names::AbstractVector{<:AbstractString},
+		resnames::AbstractVector{<:AbstractString})
+	@boundscheck begin
+		length(elements) == length(names) == length(resnames) ||
+				error("size mismatch between property arrays")
+	end
+	for i in eachindex(elements)
+		if elements[i] == ""
+			elements[i] = inferelement(names[i], resnames[i])
+		end
 	end
 	elements
 end

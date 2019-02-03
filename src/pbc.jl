@@ -9,12 +9,12 @@ using StaticArrays
 
 export
 		TriclinicPBC, RhombododecahedralPBC, OrthorhombicPBC, Kspace, kspace,
-		PBCGeometry, pbcgeometry, pbcmatrix, isrhombododecahedral, ishexagonal,
-		ismonoclinic, isorthorhombic, istetragonal, iscubic, TriclinicCell,
-		RhombododecahedralCell, OrthorhombicCell, pbccell, wrappos, wrappos!,
-		pbcpos, pbcpos!, eachimage, nearestpos, nearestpos!, mindist, sqmindist,
-		UnwrapStrategy, UnwrapByExtent, UnwrapByGap, unwrap!, PositionGrid,
-		posgrid, posgrid!
+		PBCGeometry, pbcgeometry, pbcmatrix, isrhombododecahedral,
+		istruncatedoctahedral, ishexagonal, isorthorhombic, istetragonal,
+		iscubic, TriclinicCell, RhombododecahedralCell, OrthorhombicCell,
+		pbccell, wrappos, wrappos!, pbcpos, pbcpos!, eachimage, nearestpos,
+		nearestpos!, mindist, sqmindist, UnwrapStrategy, UnwrapByExtent,
+		UnwrapByGap, unwrap!, PositionGrid, posgrid, posgrid!
 
 abstract type TriclinicPBC end
 
@@ -27,17 +27,15 @@ struct Kspace end
 const kspace = Kspace()
 
 struct PBCGeometry
-	sides::Vector3D
+	edges::Vector3D
 	angles::Vector3D
 end
 
-function Base.iterate(geometry::PBCGeometry, state::Integer = 1)
-	if state == 1
-		geometry.sides, 2
-	elseif state == 2
-		geometry.angles, 3
-	else
+function Base.iterate(geometry::PBCGeometry, i::Integer = 1)
+	if i > 2
 		nothing
+	else
+		geometry[i], i + 1
 	end
 end
 
@@ -47,7 +45,7 @@ Base.length(::PBCGeometry) = 2
 
 function Base.getindex(geometry::PBCGeometry, i::Integer)
 	if i == 1
-		geometry.sides
+		geometry.edges
 	elseif i == 2
 		geometry.angles
 	else
@@ -66,8 +64,8 @@ function pbcgeometry(M::Basis3D)
 	PBCGeometry([a,b,c], [α,β,γ])
 end
 
-pbcgeometry(sides::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
-		PBCGeometry(sides, angles)
+pbcgeometry(edges::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
+		PBCGeometry(edges, angles)
 
 pbcgeometry(geometry::PBCGeometry) = geometry
 
@@ -75,20 +73,20 @@ pbcmatrix(M::AbstractMatrix{<:Real}) = Basis3D(M)
 
 pbcmatrix(M::Basis3D) = M
 
-pbcmatrix(sides::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
-		pbcmatrix(pbcgeometry(sides, angles))
+pbcmatrix(edges::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
+		pbcmatrix(pbcgeometry(edges, angles))
 
 function pbcmatrix(((a,b,c),(α,β,γ))::PBCGeometry)
 	Ax, Ay, Az = a, 0.0, 0.0 # A lies along the positive X axis
-	Bx, By, Bz = b*cos(α), b*sin(α), 0.0 # B lies in the X-Y plane
+	Bx, By, Bz = b*cos(γ), b*sin(γ), 0.0 # B lies in the X-Y plane
 	Cx = c*cos(β)
-	Cy = (b*c*cos(γ) - Bx*Cx) / By
+	Cy = (b*c*cos(α) - Bx*Cx) / By
 	Cz = √(c^2 - Cx^2 - Cy^2)
-	[[Ax,Ay,Az] [Bx,By,Bz] [Cx,Cy,Cz]]
+	Basis3D([[Ax,Ay,Az] [Bx,By,Bz] [Cx,Cy,Cz]])
 end
 
 Base.:(==)(cell1::TriclinicPBC, cell2::TriclinicPBC) =
-		pbcmatrix(cell1) == pbcmatrix(cell2)
+		pbcmatrix(cell1) ≈ pbcmatrix(cell2)
 
 Base.:(*)(cell::TriclinicPBC, R::AbstractVector{<:Real}) = cell.T * R
 
@@ -128,7 +126,7 @@ function Geometry.volume(cell::TriclinicPBC)
 end
 
 isrhombododecahedral(((a,b,c),(α,β,γ))::PBCGeometry) =
-		(a ≈ b ≈ c) && (α ≈ τ/4) && (β ≈ γ ≈ τ/6)
+		(a ≈ b ≈ c) && (α ≈ β ≈ τ/6) && (γ ≈ τ/4)
 
 isrhombododecahedral(cell::TriclinicPBC) =
 		isrhombododecahedral(pbcgeometry(cell))
@@ -136,6 +134,18 @@ isrhombododecahedral(cell::TriclinicPBC) =
 isrhombododecahedral(cell::RhombododecahedralPBC) = true
 
 isrhombododecahedral(cell::OrthorhombicPBC) = false
+
+function istruncatedoctahedral(((a,b,c),(α,β,γ))::PBCGeometry)
+	θ = arccos(1/3)
+	(a ≈ b ≈ c) && (α ≈ γ ≈ θ) && (β ≈ τ/2 - θ)
+end
+
+istruncatedoctahedral(cell::TriclinicPBC) =
+		istruncatedoctahedral(pbcgeometry(cell))
+
+istruncatedoctahedral(cell::RhombododecahedralPBC) = false
+
+istruncatedoctahedral(cell::OrthorhombicPBC) = false
 
 ishexagonal(((a,b,c),(α,β,γ))::PBCGeometry) =
 		(a ≈ b) && (α ≈ β ≈ τ/4) && (γ ≈ τ/3)
@@ -145,14 +155,6 @@ ishexagonal(cell::TriclinicPBC) = ishexagonal(pbcgeometry(cell))
 ishexagonal(cell::RhombododecahedralPBC) = false
 
 ishexagonal(cell::OrthorhombicPBC) = false
-
-ismonoclinic(((a,b,c),(α,β,γ))::PBCGeometry) = (α ≈ τ/4)
-
-ismonoclinic(cell::TriclinicPBC) = ismonoclinic(pbcgeometry(cell))
-
-ismonoclinic(cell::RhombododecahedralPBC) = false
-
-ismonoclinic(cell::OrthorhombicPBC) = true
 
 isorthorhombic(((a,b,c),(α,β,γ))::PBCGeometry) = (α ≈ β ≈ γ ≈ τ/4)
 
@@ -181,16 +183,13 @@ iscubic(cell::OrthorhombicPBC) = (dims(cell).x ≈ dims(cell).y ≈ dims(cell).z
 struct TriclinicCell <: TriclinicPBC
 	T::LinearTransformation
 	inv::LinearTransformation
-	r2::Float64
 
-	function TriclinicCell(M::AbstractMatrix{<:Real})
-		r2 = (minimum(pbcgeometry(M).sides) / 2)^2
-		new(LinearTransformation(M), LinearTransformation(inv(M)), r2)
-	end
+	TriclinicCell(M::AbstractMatrix{<:Real}) =
+			new(LinearTransformation(M), LinearTransformation(inv(M)))
 end
 
-TriclinicCell(sides::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
-		TriclinicCell(pbcmatrix(sides, angles))
+TriclinicCell(edges::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
+		TriclinicCell(pbcmatrix(edges, angles))
 
 TriclinicCell(geometry::PBCGeometry) = TriclinicCell(pbcmatrix(geometry))
 
@@ -206,7 +205,7 @@ struct RhombododecahedralCell <: RhombododecahedralPBC
 	r2::Float64
 
 	function RhombododecahedralCell(a::Real)
-		M = pbcmatrix([a,a,a], [τ/4, τ/6, τ/6])
+		M = pbcmatrix([a,a,a], [τ/6, τ/6, τ/4])
 		new(LinearTransformation(M), LinearTransformation(inv(M)), (a/2)^2)
 	end
 end
@@ -215,19 +214,22 @@ RhombododecahedralCell(cell::RhombododecahedralCell) = cell
 
 pbcmatrix(cell::RhombododecahedralCell) = cell.T.M
 
-pbcgeometry(cell::RhombododecahedralCell) =
-		(dims(cell), Vector3D(τ/4, τ/6, τ/6))
+function pbcgeometry(cell::RhombododecahedralCell)
+	a = 2*sqrt(cell.r2)
+	PBCGeometry(Vector3D(a, a, a), Vector3D(τ/4, τ/6, τ/6))
+end
 
 (cell::RhombododecahedralCell)(x) = transform(cell.T, x)
 
 struct OrthorhombicCell <: OrthorhombicPBC
 	T::Scaling
 	inv::Scaling
-	R::Vector3D
 
 	OrthorhombicCell(V::AbstractVector{<:Real}) =
-			new(Scaling(V), Scaling(1.0 ./ V), V ./ 2)
+			new(Scaling(V), Scaling(1.0 ./ V))
 end
+
+OrthorhombicCell(x::Real, y::Real, z::Real) = OrthorhombicCell([x, y, z])
 
 OrthorhombicCell(xy::Real, z::Real) = OrthorhombicCell([xy, xy, z])
 
@@ -237,11 +239,10 @@ OrthorhombicCell(cell::OrthorhombicCell) = cell
 
 pbcmatrix(cell::OrthorhombicCell) = Diagonal(cell.T.V)
 
-pbcgeometry(cell::OrthorhombicCell) = (cell.T.V, Vector3D(τ/4, τ/4, τ/4))
+pbcgeometry(cell::OrthorhombicCell) =
+		PBCGeometry(dims(cell), Vector3D(τ/4, τ/4, τ/4))
 
 Geometry.dims(cell::OrthorhombicCell) = cell.T.V
-
-Geometry.center(cell::OrthorhombicCell) = cell.R
 
 (cell::OrthorhombicCell)(x) = transform(cell.T, x)
 
@@ -256,22 +257,22 @@ pbccell(M::AbstractMatrix{<:Real}) = pbccell(Basis3D(M))
 function pbccell(M::Basis3D)
 	geometry = pbcgeometry(M)
 	if isrhombododecahedral(geometry)
-		RhombododecahedralCell(geometry.sides[1])
+		RhombododecahedralCell(geometry.edges[1])
 	elseif isorthorhombic(geometry)
-		OrthorhombicCell(geometry.sides)
+		OrthorhombicCell(geometry.edges)
 	else
 		TriclinicCell(M)
 	end
 end
 
-pbccell(sides::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
-		pbccell(PBCGeometry(sides, angles))
+pbccell(edges::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
+		pbccell(PBCGeometry(edges, angles))
 
 function pbccell(geometry::PBCGeometry)
 	if isrhombododecahedral(geometry)
-		RhombododecahedralCell(geometry.sides[1])
+		RhombododecahedralCell(geometry.edges[1])
 	elseif isorthorhombic(geometry)
-		OrthorhombicCell(geometry.sides)
+		OrthorhombicCell(geometry.edges)
 	else
 		TriclinicCell(pbcmatrix(geometry))
 	end
@@ -370,8 +371,21 @@ nearestpos(R::AbstractVector{<:Real}, O::AbstractVector{<:Real},
 nearestpos(R::Vector3D, O::Vector3D, cell::Union{TriclinicPBC,Nothing}) =
 		nearestpos(pbcpos(R, cell)..., O, cell)
 
+function nearestpos(Rw::Vector3D, Kw::Vector3D, O::Vector3D, cell::TriclinicPBC)
+	Rwmin = Rw
+	d2min = sqdist(Rw, O)
+	for Rwi in eachimage(Rw, Kw, cell)
+		d2 = sqdist(Rwi, O)
+		if d2 < d2min
+			d2min = d2
+			Rwmin = Rwi
+		end
+	end
+	Rwmin
+end
+
 function nearestpos(Rw::Vector3D, Kw::Vector3D, O::Vector3D,
-		cell::TriclinicPBC)
+		cell::RhombododecahedralPBC)
 	Rwmin = Rw
 	d2min = sqdist(Rw, O)
 	if d2min < cell.r2
@@ -437,30 +451,42 @@ end
 mindist(R1::AbstractVector{<:Real}, R2::AbstractVector{<:Real},
 		cell::Union{TriclinicPBC,Nothing}) = sqrt(sqmindist(R1, R2, cell))
 
-mindist(R1w::AbstractVector{<:Real}, R1kw::AbstractVector{<:Real},
-		R2w::AbstractVector{<:Real}, R2kw::AbstractVector{<:Real},
+mindist(R1w::AbstractVector{<:Real}, K1w::AbstractVector{<:Real},
+		R2w::AbstractVector{<:Real}, K2w::AbstractVector{<:Real},
 		cell::Union{TriclinicPBC,Nothing}) =
-		sqrt(sqmindist(R1w, R1kw, R2w, R2kw, cell))
+		sqrt(sqmindist(R1w, K1w, R2w, K2w, cell))
 
 sqmindist(R1::AbstractVector{<:Real}, R2::AbstractVector{<:Real},
 		cell::Union{TriclinicPBC,Nothing}) =
 		sqmindist(Vector3D(R1), Vector3D(R2), cell)
 
-sqmindist(R1w::AbstractVector{<:Real}, R1kw::AbstractVector{<:Real},
-		R2w::AbstractVector{<:Real}, R2kw::AbstractVector{<:Real},
+sqmindist(R1w::AbstractVector{<:Real}, K1w::AbstractVector{<:Real},
+		R2w::AbstractVector{<:Real}, K2w::AbstractVector{<:Real},
 		cell::Union{TriclinicPBC,Nothing}) = sqmindist(Vector3D(R1w),
-		Vector3D(R1kw), Vector3D(R2w), Vector3D(R2kw), cell)
+		Vector3D(K1w), Vector3D(R2w), Vector3D(K2w), cell)
 
 sqmindist(R1::Vector3D, R2::Vector3D, cell::Union{TriclinicPBC,Nothing}) =
 		sqmindist(pbcpos(R1)..., pbcpos(R2)..., cell)
 
-function sqmindist(R1w::Vector3D, R1kw::Vector3D, R2w::Vector3D, R2kw::Vector3D,
+function sqmindist(R1w::Vector3D, K1w::Vector3D, R2w::Vector3D, K2w::Vector3D,
 		cell::TriclinicPBC)
+	d2min = sqdist(R1w, R2w)
+	for R1wi in eachimage(R1w, K1w, cell)
+		d2 = sqdist(R1wi, R2w)
+		if d2 < d2min
+			d2min = d2
+		end
+	end
+	d2min
+end
+
+function sqmindist(R1w::Vector3D, K1w::Vector3D, R2w::Vector3D, K2w::Vector3D,
+		cell::RhombododecahedralPBC)
 	d2min = sqdist(R1w, R2w)
 	if d2min < cell.r2
 		return d2min
 	end
-	for R1wi in eachimage(R1w, R1kw, cell)
+	for R1wi in eachimage(R1w, K1w, cell)
 		d2 = sqdist(R1wi, R2w)
 		if d2 < cell.r2
 			return d2
@@ -471,7 +497,7 @@ function sqmindist(R1w::Vector3D, R1kw::Vector3D, R2w::Vector3D, R2kw::Vector3D,
 	d2min
 end
 
-function sqmindist(R1w::Vector3D, R1kw::Vector3D, R2w::Vector3D, R2kw::Vector3D,
+function sqmindist(R1w::Vector3D, K1w::Vector3D, R2w::Vector3D, K2w::Vector3D,
 		cell::OrthorhombicPBC)
 	x, y, z = abs.(R2w - R1w)
 	if x > center(cell).x
@@ -486,7 +512,7 @@ function sqmindist(R1w::Vector3D, R1kw::Vector3D, R2w::Vector3D, R2kw::Vector3D,
 	x^2 + y^2 + z^2
 end
 
-sqmindist(R1w::Vector3D, R1kw::Vector3D, R2w::Vector3D, R2kw::Vector3D,
+sqmindist(R1w::Vector3D, K1w::Vector3D, R2w::Vector3D, K2w::Vector3D,
 		::Nothing) = sqdist(R1w, R2w)
 
 abstract type UnwrapStrategy end
@@ -653,17 +679,26 @@ PeriodicPositionGrid(g3::PeriodicGrid3D{Int},
 
 function PeriodicPositionGrid(cell::TriclinicPBC)
 	g3 = PeriodicGrid3D{Int}(extent([0.0,0.0,0.0]), [1.0,1.0,1.0])
-	I = Vector{Tuple{Int,Int,Int}}(undef, 0)
+	I = Tuple{Int,Int,Int}[]
 	PeriodicPositionGrid(g3, I, cell)
 end
 
 PeriodicPositionGrid(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC,
-		d::Real) =
-		PeriodicPositionGrid(PeriodicPositionGrid(cell), Kw, cell, d)
+		d::Real) = PeriodicPositionGrid(PeriodicPositionGrid(cell), Kw, cell, d)
+
+gridcelldims(cell::TriclinicPBC, d::Real) = Vector3D(1.0, 1.0, 1.0)
+
+gridcelldims(cell::OrthorhombicPBC, d::Real) = inv(cell) * Vector3D(d, d, d)
+
+function gridcelldims(cell::RhombododecahedralPBC, d::Real)
+	r = √(2*d^2)
+	gridcell = RhombododecahedralCell(r)
+	inv(cell) * dims(gridcell)
+end
 
 function PeriodicPositionGrid(pg::PeriodicPositionGrid,
 		Kw::AbstractVector{Vector3D}, cell::TriclinicPBC, d::Real)
-	D = [1.0,1.0,1.0] - inv(cell) * (dims(cell) .- d)
+	D = gridcelldims(cell, d)
 	g3 = resize!(pg.g3, extent([0.0,0.0,0.0], [1.0,1.0,1.0]), D)
 	I = resize!(pg.I, length(Kw))
 	for i in eachindex(Kw)

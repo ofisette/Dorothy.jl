@@ -81,9 +81,9 @@ function readpdb!(io::IO, model::MolecularModel, ids::AbstractVector{<:Integer},
 				error("multiple cell definitions")
 			else
 				tokens = split(line[7:end])
-				sides = [parse(Float64, token) for token in tokens[1:3]]
+				edges = [parse(Float64, token) for token in tokens[1:3]]
 				angles = [parse(Float64, token) for token in tokens[4:6]]
-				cell = pbccell(sides, deg2rad.(angles))
+				cell = pbccell(edges, deg2rad.(angles))
 			end
 		elseif startswith(line, "END")
 			@debug "stopping" ln
@@ -216,9 +216,9 @@ function writepdb(io::IO, title::Union{AbstractString,Nothing},
 	if cell != nothing
 		ln += 1
 		@debug "writing cell" ln
-		sides, angles = pbcgeometry(cell)
+		edges, angles = pbcgeometry(cell)
 		@printf(io, "CRYST1%9.3f%9.3f%9.3f%7.2f%7.2f%7.2f P 1           1\n",
-				sides..., rad2deg.(angles)...)
+				edges..., rad2deg.(angles)...)
 	end
 
 	if modelid != nothing

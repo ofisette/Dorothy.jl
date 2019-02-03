@@ -62,8 +62,11 @@ struct ChainMode <: SelectionMode end
 
 Base.show(io::IO, ::ChainMode) = "chain"
 
-getmcrp!(model::ParticleCollection, cache::SelectionCache) =
-		get!(cache, :mcrp, mcrp(model))
+function getmcrp!(model::ParticleCollection, cache::SelectionCache)
+	get!(cache, :mcrp) do
+		mcrp(model)
+	end
+end
 
 geth2!(model::ParticleCollection, cache::SelectionCache, ::ChainMode) =
 		getmcrp!(model, cache).flath1
@@ -83,8 +86,20 @@ struct FragmentMode <: SelectionMode end
 
 Base.show(io::IO, ::FragmentMode) = "fragment"
 
-geth2!(model::ParticleCollection, cache::SelectionCache, ::FragmentMode) =
-		get!(cache, :mfp, mfp(model))
+function gettopology!(model::ParticleCollection, cache::SelectionCache)
+	get!(cache, :topology) do
+		get(model, :topology) do
+			infertopology!(Graph(length(model)), model)
+		end
+	end
+end
+
+function geth2!(model::ParticleCollection, cache::SelectionCache,
+		::FragmentMode)
+	get!(cache, :mfp) do
+		mfp(mfptree(gettopology!(model, cache)), length(model))
+	end
+end
 
 iscallable(f) = !isempty(methods(f))
 
@@ -289,12 +304,16 @@ selectindices!(results::BitVector, f, by::ParticleMode, ineach::ModelMode,
 		model::ParticleCollection, cache::SelectionCache) =
 		selectindices0r!(results, f(eachindex(model)))
 
-selectindices0r!(results::BitVector,
-		I::Union{AbstractVector{<:Integer},Integer}) = (results[I] = true)
+function selectindices0r!(results::BitVector,
+		I::Union{AbstractVector{<:Integer},Integer})
+	for i in I
+		results[i] = true
+	end
+end
 
 selectindices!(results::BitVector, f, by::ParticleMode, ineach::SelectionMode,
 		model::ParticleCollection, cache::SelectionCache) =
-		selectindices01(results, f, geth2!(model, cache, ineach).tree)
+		selectindices01!(results, f, geth2!(model, cache, ineach).tree)
 
 function selectindices01!(results::BitVector, f,
 		tree::AbstractVector{<:AbstractVector{<:Integer}})
@@ -725,10 +744,8 @@ module Selectors
 
 	function Element(X...)
 		f = function (model, cache)
-			get(model, :elements) do
-				get!(cache, :elements) do
-					inferelements!(similar(model, String), model)
-				end
+			get!(cache, :elements) do
+				infermissingelements(model)
 			end
 		end
 		Dorothy.PropertySelector(f, Dorothy.stringpredicate(X...))
@@ -777,7 +794,7 @@ module Selectors
 		Dorothy.PropertySelector(f, Dorothy.stringpredicate(X...))
 	end
 
-	const Hydrogen = Dorothy.CachedSelector(Name(ishydrogen), :hydrogens)
+	const Hydrogen = Dorothy.CachedSelector(Element("H"), :hydrogens)
 
 	const Heavy = !Hydrogen
 

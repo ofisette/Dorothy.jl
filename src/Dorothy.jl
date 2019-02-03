@@ -19,14 +19,14 @@ export
 
 		wrapid, unwrapids!, unwrapnames!,
 
-		namematcher, ishydrogen, isheavy, isvsite, iswater, isprotein,
-		isacidresidue, isbasicresidue, ischargedresidue, ispolarresidue,
-		ishydrophobicresidue, ismainchain, issidechain, isbackbone, isnuclacid,
-		islipid, ision, ismonatomicion, ispolyatomicion, isalphahelix,
-		ishelix310, ispihelix, isturn, isstrand, isbridge, iscoil, isbend,
-		ishelix, issheet, isloop,
+		namematcher, isheavy, isvsite, iswater, isprotein, isacidresidue,
+		isbasicresidue, ischargedresidue, ispolarresidue, ishydrophobicresidue,
+		ismainchain, issidechain, isbackbone, isnuclacid, islipid, ision,
+		ismonatomicion, ispolyatomicion, isalphahelix, ishelix310, ispihelix,
+		isturn, isstrand, isbridge, iscoil, isbend, ishelix, issheet, isloop,
 
-		inferelement, inferelements!, infermass, infermasses!,
+		inferelement, inferelements!, infermissingelements,
+		infermissingelements!, infermass, infermasses!,
 
 		SelectionCache, emptyframe!, SelectionMode, Selector, Selectors,
 
@@ -67,6 +67,9 @@ using .NDX
 
 include("ss.jl")
 include("topology.jl")
+
+using .SS
+using .Topology
 
 function __init__()
 	register_gromos87()
