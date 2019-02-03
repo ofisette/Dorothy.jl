@@ -12,7 +12,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 
 @testset "Secondary structure" begin
 
-	@testset "Guessing SS" begin
+	@testset "Inference" begin
 		m1 = readf("$(datapath)/1BTL.gro")
 		inferss!(m1)
 		@test m1.SS == ["C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "H",

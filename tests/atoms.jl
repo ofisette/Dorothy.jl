@@ -1,16 +1,16 @@
 using Test
 using LinearAlgebra
 using Dorothy
+using Dorothy.Atoms
 using Dorothy.Graphs
 using Dorothy.Geometry
 using Dorothy.PBC
-using Dorothy.Properties
 using Formats
 using FormatStreams
 
 datapath = joinpath(@__DIR__, "..", "data")
 
-@testset "Properties" begin
+@testset "Atoms" begin
 
 	@testset "Guessing elements" begin
 		m1 = readf("$(datapath)/1BTL.gro")

@@ -1,6 +1,7 @@
 module Topology
 
 using ..Dorothy
+using ..Dorothy.Atoms
 using ..Dorothy.Geometry
 using ..Dorothy.Graphs
 using ..Dorothy.PBC

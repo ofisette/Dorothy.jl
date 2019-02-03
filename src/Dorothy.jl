@@ -14,6 +14,7 @@ export
 		emptyframe!, SelectionMode, Selector, Selectors, DorothyIO
 
 include("utils.jl")
+include("properties.jl")
 include("headers.jl")
 include("graphs.jl")
 include("geometry.jl")
@@ -21,6 +22,7 @@ include("pbc.jl")
 include("multicolls.jl")
 
 using .Utils
+using .Properties
 using .Headers
 using .Graphs
 using .Geometry
@@ -28,10 +30,10 @@ using .PBC
 using .Multicollections
 
 include("models.jl")
-include("properties.jl")
+include("atoms.jl")
 include("hierarchies.jl")
 
-using .Properties
+using .Atoms
 using .Hierarchies
 
 include("selections.jl")

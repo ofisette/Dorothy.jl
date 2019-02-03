@@ -1,8 +1,9 @@
 using Test
 using Dorothy
-using Dorothy.Utils
+using Dorothy.Atoms
 using Dorothy.Geometry
 using Dorothy.Properties
+using Dorothy.Utils
 using Formats
 using FormatStreams
 

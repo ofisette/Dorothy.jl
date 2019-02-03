@@ -13,7 +13,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 
 @testset "Topology" begin
 
-	@testset "Automated assessment" begin
+	@testset "Inference" begin
 		m1 = readf("$(datapath)/1BTL.gro")
 		topo = infertopology!(m1)
 		@test topo[1] == [2]

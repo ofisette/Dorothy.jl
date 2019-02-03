@@ -12,7 +12,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 	include("pbc.jl")
 
 	include("models.jl")
-	include("properties.jl")
+	include("atoms.jl")
 	include("hierarchies.jl")
 	include("selections.jl")
 
