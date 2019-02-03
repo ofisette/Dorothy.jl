@@ -21,9 +21,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 		@test topo[3] == [2,4,11]
 		@test topo[4] == [3]
 		m2 = readf("$(datapath)/MHC.pdb")
-		println("tapir")
 		topo = infertopology!(m2)
-		println("tapir")
 		@test topo[1] == [2,3,4,5,6,7]
 		@test topo[2] == [1,3,5,6,7]
 		@test topo[3] == [1,2,4,5,6,7]

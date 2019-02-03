@@ -1,6 +1,7 @@
 using Test
 using Dorothy
 using Dorothy.Geometry
+using Dorothy.Hierarchies
 using Dorothy.PBC
 using Dorothy.Utils
 using Formats
@@ -62,8 +63,6 @@ datapath = joinpath(@__DIR__, "..", "data")
 		model = readf("$(datapath)/MHC.pdb")
 		R = model.R
 		cell = model.header.cell
-		println(cell)
-		println(pbcgeometry(cell))
 		R .= wrappos.(R, cell)
 		unwrap!(view(model, Protein).R, cell, UnwrapByGap(cell))
 		for residue in residues(view(model, Water))

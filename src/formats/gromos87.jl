@@ -7,6 +7,7 @@ using ..Dorothy
 using ..Dorothy.Utils
 using ..Dorothy.Geometry
 using ..Dorothy.PBC
+using ..Dorothy.Properties
 using Formats
 using StaticArrays
 

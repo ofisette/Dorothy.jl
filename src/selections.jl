@@ -667,6 +667,7 @@ end
 module Selectors
 
 	using ..Dorothy
+	using ..Dorothy.Properties
 	using ..Dorothy.Utils
 
 	export
@@ -820,7 +821,8 @@ module Selectors
 			Dorothy.CachedSelector(ResName(ishydrophobicresidue),
 			:hydrophobicresidues)
 
-	const MainChainName = Dorothy.CachedSelector(Name(Dorothy.ismainchainname),
+	const MainChainName =
+			Dorothy.CachedSelector(Name(Properties.ismainchainname),
 			:mainchainnames)
 
 	const MainChain = MainChainName & Protein
@@ -828,7 +830,8 @@ module Selectors
 	const SideChain = !MainChainName & Protein
 
 	const BackboneName =
-			Dorothy.CachedSelector(Name(Dorothy.isbackbonename), :backbonenames)
+			Dorothy.CachedSelector(Name(Properties.isbackbonename),
+			:backbonenames)
 
 	const Backbone = BackboneName & Protein
 

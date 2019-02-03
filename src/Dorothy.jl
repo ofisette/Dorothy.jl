@@ -10,27 +10,8 @@ using FormatStreams
 
 export
 		MolecularModelHeader, MolecularModel, MolecularModelView,
-		ParticleCollection, Particle, MolecularTrajectory,
-
-		mcrptree, mcrp, chains, residues, mfptree, mfp, fragments,
-		chainat, residueat, fragmentat,
-
-		standard_atomic_weights, covalent_radii, vertebrate_aa_frequencies,
-
-		wrapid, unwrapids!, unwrapnames!,
-
-		namematcher, isheavy, isvsite, iswater, isprotein, isacidresidue,
-		isbasicresidue, ischargedresidue, ispolarresidue, ishydrophobicresidue,
-		ismainchain, issidechain, isbackbone, isnuclacid, islipid, ision,
-		ismonatomicion, ispolyatomicion, isalphahelix, ishelix310, ispihelix,
-		isturn, isstrand, isbridge, iscoil, isbend, ishelix, issheet, isloop,
-
-		inferelement, inferelements!, infermissingelements,
-		infermissingelements!, infermass, infermasses!,
-
-		SelectionCache, emptyframe!, SelectionMode, Selector, Selectors,
-
-		DorothyIO
+		ParticleCollection, Particle, MolecularTrajectory, SelectionCache,
+		emptyframe!, SelectionMode, Selector, Selectors, DorothyIO
 
 include("utils.jl")
 include("headers.jl")
@@ -48,7 +29,14 @@ using .Multicollections
 
 include("models.jl")
 include("properties.jl")
+include("hierarchies.jl")
+
+using .Properties
+using .Hierarchies
+
 include("selections.jl")
+
+using .Selectors
 
 struct DorothyIO <: Formats.FormatHandler end
 

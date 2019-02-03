@@ -13,7 +13,8 @@ datapath = joinpath(@__DIR__, "..", "data")
 
 	include("models.jl")
 	include("properties.jl")
-	include("selection.jl")
+	include("hierarchies.jl")
+	include("selections.jl")
 
 	@testset "Formats" begin
 		include("formats/gromos87.jl")

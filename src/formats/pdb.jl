@@ -6,6 +6,7 @@ using Printf
 using ..Dorothy
 using ..Dorothy.Geometry
 using ..Dorothy.PBC
+using ..Dorothy.Properties
 using ..Dorothy.Utils
 using Formats
 

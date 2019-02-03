@@ -1,5 +1,24 @@
 # Properties and constants related to molecular models
 
+module Properties
+
+using ..Dorothy
+using ..Dorothy.Utils
+
+export
+		standard_atomic_weights, covalent_radii, vertebrate_aa_frequencies,
+
+		wrapid, unwrapids!, unwrapnames!,
+
+		namematcher, isvsite, iswater, isprotein, isacidresidue, isbasicresidue,
+		ischargedresidue, ispolarresidue, ishydrophobicresidue, ismainchain,
+		issidechain, isbackbone, isnuclacid, islipid, ision, ismonatomicion,
+		ispolyatomicion, isalphahelix, ishelix310, ispihelix, isturn, isstrand,
+		isbridge, iscoil, isbend, ishelix, issheet, isloop,
+
+		inferelement, inferelements!, infermissingelements,
+		infermissingelements!, infermass, infermasses!
+
 # J. Meija et al. Pure Appl. Chem., 88(3):265-91, 2016.
 # doi:10.1515/pac-2015-0305
 const standard_atomic_weights = Dict(
@@ -505,3 +524,5 @@ function infermasses!(masses::AbstractVector{<:Real},
 	end
 	masses
 end
+
+end # module

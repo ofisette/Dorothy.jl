@@ -2,6 +2,7 @@ module SS
 
 using ..Dorothy
 using ..Dorothy.Geometry
+using ..Dorothy.Hierarchies
 using ..Dorothy.PDB
 using ..Dorothy.Selectors
 using ..Dorothy.Utils

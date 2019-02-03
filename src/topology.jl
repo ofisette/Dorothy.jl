@@ -4,6 +4,7 @@ using ..Dorothy
 using ..Dorothy.Geometry
 using ..Dorothy.Graphs
 using ..Dorothy.PBC
+using ..Dorothy.Properties
 using ..Dorothy.Utils
 
 export infertopology!

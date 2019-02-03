@@ -2,6 +2,7 @@ using Test
 using Dorothy
 using Dorothy.Utils
 using Dorothy.Geometry
+using Dorothy.Properties
 using Formats
 using FormatStreams
 
