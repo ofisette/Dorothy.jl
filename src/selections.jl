@@ -1,16 +1,54 @@
 # Particle selection routines
 
-const SelectionCache = Dict{Symbol,Any}
+struct SelectionCache
+	D::Dict{Symbol,Any}
+end
 
-function emptyframe!(cache::SelectionCache)
-	for key in [:pbcpos, :posgrids, :SS]
-		delete!(cache, key)
+SelectionCache() = SelectionCache(Dict{Symbol,Any}())
+
+Base.get!(f, cache::SelectionCache, key::Symbol) = get!(f, cache.D, key)
+
+Base.delete!(cache::SelectionCache, key::Symbol) = delete!(cache.D, key)
+
+function getframe(cache::SelectionCache)
+	get!(cache, :frame) do
+		Dict{Symbol,Any}()
 	end
 end
 
-function getpbcpos!(cache::SelectionCache, R::AbstractVector{Vector3D},
-		cell::Union{TriclinicPBC,Nothing})
-	get!(cache, :pbcpos) do
+function getchainids(model::ParticleCollection, cache::SelectionCache)
+	get(model, :chainids) do
+		Repeated("", length(model))
+	end
+end
+
+function getelements(model::ParticleCollection, cache::SelectionCache)
+	get!(cache, :elements) do
+		infermissingelements(model)
+	end
+end
+
+function getmasses(model::ParticleCollection, cache::SelectionCache)
+	get(model, :masses) do
+		get!(cache, :masses) do
+			masses = Vector{Float64}(undef, length(model))
+			elements = getelements(model, cache)
+			infermasses!(masses, model.names, elements)
+		end
+	end
+end
+
+function getss(model::ParticleCollection, cache::SelectionCache)
+	get(model, :SS) do
+		get!(getframe(cache), :SS) do
+			inferss(model)
+		end
+	end
+end
+
+function getpbcpos(R::AbstractVector{Vector3D},
+		cell::Union{TriclinicPBC,Nothing}, cache::SelectionCache)
+	get!(getframe(cache), :pbcpos) do
 		Rw, Kw = get!(cache, :pbcposbuffer) do
 			similar(R), similar(R)
 		end
@@ -18,10 +56,9 @@ function getpbcpos!(cache::SelectionCache, R::AbstractVector{Vector3D},
 	end
 end
 
-function getposgrid!(cache::SelectionCache, Rw::AbstractVector{Vector3D},
-		Kw::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		d::Real)
-	grids = get!(cache, :posgrids) do
+function getposgrid(Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
+		cell::Union{TriclinicPBC,Nothing}, d::Real, cache::SelectionCache)
+	grids = get!(getframe(cache), :posgrids) do
 		Dict{Int,PositionGrid}()
 	end
 	ceild = ceil(Int, d)
@@ -62,21 +99,21 @@ struct ChainMode <: SelectionMode end
 
 Base.show(io::IO, ::ChainMode) = "chain"
 
-function getmcrp!(model::ParticleCollection, cache::SelectionCache)
+function getmcrp(model::ParticleCollection, cache::SelectionCache)
 	get!(cache, :mcrp) do
 		mcrp(model)
 	end
 end
 
-geth2!(model::ParticleCollection, cache::SelectionCache, ::ChainMode) =
-		getmcrp!(model, cache).flath1
+geth2(model::ParticleCollection, ::ChainMode, cache::SelectionCache) =
+		getmcrp(model, cache).flath1
 
 struct ResidueMode <: SelectionMode end
 
 Base.show(io::IO, ::ResidueMode) = "residue"
 
-geth2!(model::ParticleCollection, cache::SelectionCache, ::ResidueMode) =
-		getmcrp!(model, cache).flath2
+geth2(model::ParticleCollection, ::ResidueMode, cache::SelectionCache) =
+		getmcrp(model, cache).flath2
 
 struct ParticleMode <: SelectionMode end
 
@@ -86,7 +123,7 @@ struct FragmentMode <: SelectionMode end
 
 Base.show(io::IO, ::FragmentMode) = "fragment"
 
-function gettopology!(model::ParticleCollection, cache::SelectionCache)
+function gettopology(model::ParticleCollection, cache::SelectionCache)
 	get!(cache, :topology) do
 		get(model, :topology) do
 			infertopology!(Graph(length(model)), model)
@@ -94,10 +131,9 @@ function gettopology!(model::ParticleCollection, cache::SelectionCache)
 	end
 end
 
-function geth2!(model::ParticleCollection, cache::SelectionCache,
-		::FragmentMode)
+function geth2(model::ParticleCollection, ::FragmentMode, cache::SelectionCache)
 	get!(cache, :mfp) do
-		mfp(mfptree(gettopology!(model, cache)), length(model))
+		mfp(mfptree(gettopology(model, cache)), length(model))
 	end
 end
 
@@ -225,16 +261,17 @@ end
 
 struct CachedSelector{T<:Selector} <: Selector
 	s::T
-	id::Symbol
+	key::Symbol
 
-	CachedSelector{T}(s::T, id::Symbol) where {T<:Selector} = new(s, id)
+	CachedSelector{T}(s::T, key::Symbol) where {T<:Selector} = new(s, key)
 end
 
-CachedSelector(s::T, id::Symbol) where {T<:Selector} = CachedSelector{T}(s, id)
+CachedSelector(s::T, key::Symbol) where {T<:Selector} =
+		CachedSelector{T}(s, key)
 
 function select!(results::BitVector, subset::AbstractVector{<:Integer},
 		s::CachedSelector, model::ParticleCollection, cache::SelectionCache)
-	cached::BitVector = get!(cache, s.id) do
+	cached::BitVector = get!(cache, s.key) do
 		work = BitVector(undef, length(model))
 		select!(work, eachindex(model), s.s, model, cache)
 		work
@@ -313,7 +350,7 @@ end
 
 selectindices!(results::BitVector, f, by::ParticleMode, ineach::SelectionMode,
 		model::ParticleCollection, cache::SelectionCache) =
-		selectindices01!(results, f, geth2!(model, cache, ineach).tree)
+		selectindices01!(results, f, geth2(model, ineach, cache).tree)
 
 function selectindices01!(results::BitVector, f,
 		tree::AbstractVector{<:AbstractVector{<:Integer}})
@@ -331,7 +368,7 @@ end
 
 selectindices!(results::BitVector, f, by::SelectionMode, ineach::ModelMode,
 		model::ParticleCollection, cache::SelectionCache) =
-		selectindices1r!(results, f, geth2!(model, cache, by).tree)
+		selectindices1r!(results, f, geth2(model, by, cache).tree)
 
 selectindices1r!(results::BitVector, f,
 		tree::AbstractVector{<:AbstractVector{<:Integer}}) =
@@ -349,7 +386,7 @@ end
 
 selectindices!(results::BitVector, f, by::ResidueMode, ineach::ChainMode,
 		model::ParticleCollection, cache::SelectionCache) =
-		selectindices12!(results, f, getmcrp!(model, cache).tree)
+		selectindices12!(results, f, getmcrp(model, cache).tree)
 
 function selectindices12!(results::BitVector, f,
 		tree::AbstractVector{<:AbstractVector{<:AbstractVector{<:Integer}}})
@@ -398,7 +435,7 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 		s::ExpandSelector, model::ParticleCollection, cache::SelectionCache)
 	select!(results, subset, s.s, model, cache)
 	work = falses(length(model))
-	selectpartial!(work, subset, results, geth2!(model, cache, s.by)...)
+	selectpartial!(work, subset, results, geth2(model, s.by, cache)...)
 	for i in subset
 		results[i] = work[i]
 	end
@@ -438,7 +475,7 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 		s::RestrictSelector, model::ParticleCollection, cache::SelectionCache)
 	select!(results, subset, s.s, model, cache)
 	work = trues(length(model))
-	selectfull!(work, subset, results, geth2!(model, cache, s.by)...)
+	selectfull!(work, subset, results, geth2(model, s.by, cache)...)
 	for i in subset
 		results[i] = work[i]
 	end
@@ -492,8 +529,8 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 		work[i] = false
 	end
 	cell = get(model.header, :cell, nothing)
-	Rw, Kw = getpbcpos!(cache, model.R, cell)
-	pg = getposgrid!(cache, Rw, Kw, cell, s.d)
+	Rw, Kw = getpbcpos(model.R, cell, cache)
+	pg = getposgrid(Rw, Kw, cell, s.d, cache)
 	Rref = s.of(model, cache)
 	selectwithinpos!(work, s.d, s.by, Rw, Kw, Rref, cell, pg, model, cache)
 	for i in subset
@@ -530,7 +567,7 @@ selectwithinpos!(results::BitVector, d::Real, by::SelectionMode,
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
 		pg::PositionGrid, model::ParticleCollection, cache::SelectionCache) =
 		selectwithinpos1!(results, d, Rw, Kw, Rref, cell, pg,
-		geth2!(model, cache, by)...)
+		geth2(model, by, cache)...)
 
 function selectwithinpos1!(results::BitVector, d::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
@@ -583,8 +620,8 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 		work[i] = false
 	end
 	cell = get(model.header, :cell, nothing)
-	Rw, Kw = getpbcpos!(cache, model.R, cell)
-	pg = getposgrid!(cache, Rw, Kw, cell, s.d)
+	Rw, Kw = getpbcpos(model.R, cell, cache)
+	pg = getposgrid(Rw, Kw, cell, s.d, cache)
 	Iref = findall(map(s.of, model, cache))
 	selectwithinsel!(work, s.d, s.by, Rw, Kw, Iref, cell, pg, model, cache)
 	for i in subset
@@ -620,7 +657,7 @@ selectwithinsel!(results::BitVector, d::Real, by::SelectionMode,
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
 		pg::PositionGrid, model::ParticleCollection, cache::SelectionCache) =
 		selectwithinsel1!(results, d, Rw, Kw, Iref, cell, pg,
-		geth2!(model, cache, by)...)
+		geth2(model, by, cache)...)
 
 function selectwithinsel1!(results::BitVector, d::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
@@ -739,18 +776,11 @@ module Selectors
 	ResName(X...) = Dorothy.PropertySelector((model, cache) -> model.resnames,
 			Dorothy.stringpredicate(X...))
 
-	ChainId(X...) = Dorothy.PropertySelector((model, cache) ->
-			get(model, :chainids, Repeated("", length(model))),
+	ChainId(X...) = Dorothy.PropertySelector(Dorothy.getchainids,
 			Dorothy.stringpredicate(X...))
 
-	function Element(X...)
-		f = function (model, cache)
-			get!(cache, :elements) do
-				infermissingelements(model)
-			end
-		end
-		Dorothy.PropertySelector(f, Dorothy.stringpredicate(X...))
-	end
+	Element(X...) = Dorothy.PropertySelector(Dorothy.getelements,
+			Dorothy.stringpredicate(X...))
 
 	R(x) = Dorothy.PropertySelector((model, cache) -> model.R,
 			Dorothy.vector3dpredicate(x))
@@ -761,19 +791,8 @@ module Selectors
 	F(x) = Dorothy.PropertySelector((model, cache) -> model.F,
 			Dorothy.vector3dpredicate(x))
 
-	function Mass(x)
-		f = function (model, cache)
-			get(model, :masses) do
-				elements = get!(cache, :elements) do
-					inferelements!(similar(model, String), model)
-				end
-				get!(cache, :masses) do
-					infermasses!(similar(model, Float64), model.names, elements)
-				end
-			end
-		end
-		Dorothy.PropertySelector(f, Dorothy.realpredicate(x))
-	end
+	Mass(x) = Dorothy.PropertySelector(Dorothy.getmasses,
+			Dorothy.realpredicate(x))
 
 	Charge(x) = Dorothy.PropertySelector((model, cache) -> model.charges,
 			Dorothy.realpredicate(x))
@@ -784,16 +803,8 @@ module Selectors
 	Occupancy(x) = Dorothy.PropertySelector((model, cache) ->
 			model.occupancies, Dorothy.realpredicate(x))
 
-	function SS(X...)
-		f = function (model, cache)
-			get(model, :SS) do
-				get!(cache, :SS) do
-					inferss!(fill("", length(model)), model)
-				end
-			end
-		end
-		Dorothy.PropertySelector(f, Dorothy.stringpredicate(X...))
-	end
+	SS(X...) = Dorothy.PropertySelector(Dorothy.getss,
+			Dorothy.stringpredicate(X...))
 
 	const Hydrogen = Dorothy.CachedSelector(Element("H"), :hydrogens)
 

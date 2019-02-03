@@ -7,8 +7,8 @@ using ..Dorothy.Properties
 using ..Dorothy.Utils
 
 export
-		inferelement, inferelements!, infermissingelements,
-		infermissingelements!, infermass, infermasses!
+		inferelement, inferelements, inferelements!, infermissingelements,
+		infermissingelements!, infermass, infermasses, infermasses!
 
 function inferelement(name::AbstractString, resname::AbstractString)
 	if ismonatomicion(resname)
@@ -19,6 +19,9 @@ function inferelement(name::AbstractString, resname::AbstractString)
 		name[1:1]
 	end
 end
+
+inferelements(model::ParticleCollection) =
+		inferelements!(Vector{String}(undef, length(model)), model)
 
 inferelements!(model::ParticleCollection) =
 		inferelements!(get!(model, :elements, undef), model)
@@ -84,6 +87,9 @@ function infermass(name::AbstractString, element::AbstractString)
 		end
 	end
 end
+
+infermasses(model::ParticleCollection) =
+		infermasses!(Vector{Float64}(undef, length(model)), model)
 
 infermasses!(model::ParticleCollection) =
 		infermasses!(get!(model, :masses, undef), model)

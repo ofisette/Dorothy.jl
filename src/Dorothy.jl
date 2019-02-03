@@ -11,7 +11,7 @@ using FormatStreams
 export
 		MolecularModelHeader, MolecularModel, MolecularModelView,
 		ParticleCollection, Particle, MolecularTrajectory, SelectionCache,
-		emptyframe!, SelectionMode, Selector, Selectors, DorothyIO
+		SelectionMode, Selector, Selectors, DorothyIO
 
 include("utils.jl")
 include("properties.jl")

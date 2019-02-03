@@ -22,9 +22,12 @@ using ..Dorothy.PDB
 using ..Dorothy.Selectors
 using ..Dorothy.Utils
 
-export SSInferenceStrategy, inferss!, SSByStride
+export SSInferenceStrategy, inferss, inferss!, SSByStride
 
 abstract type SSInferenceStrategy end
+
+inferss(model::ParticleCollection) =
+		inferss!(Vector{String}(undef, length(model)), model)
 
 inferss!(model::ParticleCollection) = inferss!(get!(model, :SS, ""), model)
 
