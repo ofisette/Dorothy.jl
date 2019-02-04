@@ -188,7 +188,7 @@ function readxtc!(io::IO, model::MolecularModel,
 	for i = 1:9
 		buffer.cell[i] = read_xdr_float(io) * 10.0
 	end
-	model.header.cell = pbccell(buffer.cell)
+	model.header.cell = TriclinicCell(buffer.cell)
 	skip(io, 4)
 	R = get!(model, :R, undef)
 	if meta.nparticles > 9

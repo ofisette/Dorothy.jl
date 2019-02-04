@@ -82,7 +82,7 @@ function readgromos87!(io::IO, model::MolecularModel;
 	if time != nothing
 		model.header.time = time
 	end
-	model.header.cell = pbccell(M)
+	model.header.cell = TriclinicCell(M)
 	ids = get!(model, :ids, undef)
 	names = get!(model, :names, undef)
 	resids = get!(model, :resids, undef)

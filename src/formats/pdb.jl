@@ -82,9 +82,9 @@ function readpdb!(io::IO, model::MolecularModel, ids::AbstractVector{<:Integer},
 				error("multiple cell definitions")
 			else
 				tokens = split(line[7:end])
-				edges = [parse(Float64, token) for token in tokens[1:3]]
-				angles = [parse(Float64, token) for token in tokens[4:6]]
-				cell = pbccell(edges, deg2rad.(angles))
+				a, b, c = [parse(Float64, t) for t in tokens[1:3]]
+				α, β, γ = [deg2rad(parse(Float64, t)) for t in tokens[4:6]]
+				cell = TriclinicCell((a,b,c), (α,β,γ))
 			end
 		elseif startswith(line, "END")
 			@debug "stopping" ln

@@ -12,8 +12,8 @@ datapath = joinpath(@__DIR__, "..", "..", "data")
 	@testset "Read" begin
 		m1 = readf("$(datapath)/1BTL.pdb")
 		@test length(m1) == 2236
-		sides, angles = pbcgeometry(m1.header.cell)
-		@test sides ≈ [43.1, 64.4, 91.2]
+		(a,b,c), (α,β,γ) = pbcgeometry(m1.header.cell)
+		@test [a,b,c] ≈ [43.1, 64.4, 91.2]
 		@test m1.header.title ==
 				"CRYSTAL STRUCTURE OF ESCHERICHIA COLI TEM1 BETA-LACTAMASE" *
 				" AT 1.8 ANGSTROMS RESOLUTION"
@@ -35,8 +35,8 @@ datapath = joinpath(@__DIR__, "..", "..", "data")
 		seekstart(io)
 		m2 = read(specify(io, "structure/x-pdb"))
 		@test length(m2) == 2236
-		sides, angles = pbcgeometry(m2.header.cell)
-		@test sides ≈ [43.1, 64.4, 91.2]
+		(a,b,c), (α,β,γ) = pbcgeometry(m2.header.cell)
+		@test [a,b,c] ≈ [43.1, 64.4, 91.2]
 		@test m2.header.title ==
 				"CRYSTAL STRUCTURE OF ESCHERICHIA COLI TEM1 BETA-LACTAMASE" *
 				" AT 1.8 ANGSTROMS RESOLUTION"
@@ -58,8 +58,8 @@ datapath = joinpath(@__DIR__, "..", "..", "data")
 		seekstart(io)
 		m2 = read(specify(io, "structure/x-gro"))
 		@test length(m2) == 2236
-		sides, angles = pbcgeometry(m2.header.cell)
-		@test sides ≈ [43.1, 64.4, 91.2]
+		(a,b,c), (α,β,γ) = pbcgeometry(m2.header.cell)
+		@test [a,b,c] ≈ [43.1, 64.4, 91.2]
 		@test m2.header.title ==
 				"CRYSTAL STRUCTURE OF ESCHERICHIA COLI TEM1 BETA-LACTAMASE" *
 				" AT 1.8 ANGSTROMS RESOLUTION"

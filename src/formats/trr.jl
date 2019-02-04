@@ -110,7 +110,12 @@ end
 
 function trr_metadata_for_model(model::MolecularModel)
 	properties = Symbol[]
-	for key in [:cell, :virial, :pressure, :R, :V, :F]
+	for key in [:cell, :virial, :pressure]
+		if haskey(model.header, key)
+			push!(properties, key)
+		end
+	end
+	for key in [:R, :V, :F]
 		if haskey(model, key)
 			push!(properties, key)
 		end
@@ -277,7 +282,7 @@ function readtrr!(io::IO, model::MolecularModel,
 	if meta.cellsize != 0
 		read!(io, buffer.cell)
 		decode_trr_array!(buffer.cellf, buffer.cell, 10.0)
-		model.header.cell = pbccell(buffer.cellf)
+		model.header.cell = TriclinicCell(buffer.cellf)
 	end
 	if meta.virialsize != 0
 		read!(io, buffer.virial)

@@ -10,13 +10,21 @@ using StaticArrays
 
 export
 		TriclinicPBC, RhombododecahedralPBC, OrthorhombicPBC, Kspace, kspace,
-		PBCGeometry, pbcgeometry, pbcmatrix, isrhombododecahedral,
+
+		pbcgeometry, pbcmatrix, pbcvolume, isrhombododecahedral,
 		istruncatedoctahedral, ishexagonal, isorthorhombic, istetragonal,
-		iscubic, TriclinicCell, RhombododecahedralCell, OrthorhombicCell,
-		pbccell, wrappos, wrappos!, pbcpos, pbcpos!, eachimage, nearestpos,
-		nearestpos!, mindist, sqmindist, UnwrapStrategy, UnwrapByExtent,
-		UnwrapByGap, unwrap!, ProximityLattice, NonperiodicProximityLattice,
-		PeriodicProximityLattice, proxiparams, proxilattice
+		iscubic,
+
+		TriclinicCell, RhombododecahedralCell, OrthorhombicCell, pbccell,
+
+		wrappos, wrappos!, pbcpos, pbcpos!, eachimage, nearestpos, nearestpos!,
+		mindist, sqmindist, UnwrapStrategy, UnwrapByExtent, UnwrapByGap,
+		unwrap!,
+
+		ProximityLattice, NonperiodicProximityLattice, PeriodicProximityLattice,
+		proxiparams, proxilattice
+
+const RealTriple = Tuple{Real,Real,Real}
 
 abstract type TriclinicPBC end
 
@@ -28,33 +36,6 @@ struct Kspace end
 
 const kspace = Kspace()
 
-struct PBCGeometry
-	edges::Vector3D
-	angles::Vector3D
-end
-
-function Base.iterate(geometry::PBCGeometry, i::Integer = 1)
-	if i > 2
-		nothing
-	else
-		geometry[i], i + 1
-	end
-end
-
-Base.eltype(::Type{PBCGeometry}) = Vector3D
-
-Base.length(::PBCGeometry) = 2
-
-function Base.getindex(geometry::PBCGeometry, i::Integer)
-	if i == 1
-		geometry.edges
-	elseif i == 2
-		geometry.angles
-	else
-		throw(BoundsError(geometry, i))
-	end
-end
-
 pbcgeometry(cell::TriclinicPBC) = pbcgeometry(pbcmatrix(cell))
 
 pbcgeometry(M::AbstractMatrix{<:Real}) = pbcgeometry(Basis3D(M))
@@ -63,28 +44,18 @@ function pbcgeometry(M::Basis3D)
 	A, B, C = [M[:,i] for i = 1:3]
 	a, b, c = [norm(V) for V in (A, B, C)]
 	α, β, γ = acos(B⋅C / (b*c)), acos(A⋅C / (a*c)), acos(A⋅B / (a*b))
-	PBCGeometry([a,b,c], [α,β,γ])
+	(a,b,c), (α,β,γ)
 end
 
-pbcgeometry(edges::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
-		PBCGeometry(edges, angles)
-
-pbcgeometry(geometry::PBCGeometry) = geometry
-
-pbcmatrix(M::AbstractMatrix{<:Real}) = Basis3D(M)
-
-pbcmatrix(M::Basis3D) = M
-
-pbcmatrix(edges::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
-		pbcmatrix(pbcgeometry(edges, angles))
-
-function pbcmatrix(((a,b,c),(α,β,γ))::PBCGeometry)
+function pbcmatrix((a,b,c)::RealTriple, (α,β,γ)::RealTriple)
 	Ax, Ay, Az = a, 0.0, 0.0 # A lies along the positive X axis
 	Bx, By, Bz = b*cos(γ), b*sin(γ), 0.0 # B lies in the X-Y plane
 	Cx = c*cos(β)
 	Cy = (b*c*cos(α) - Bx*Cx) / By
 	Cz = √(c^2 - Cx^2 - Cy^2)
-	Basis3D([[Ax,Ay,Az] [Bx,By,Bz] [Cx,Cy,Cz]])
+	Basis3D([Ax Bx Cx;
+	         Ay By Cy;
+			 Az Bz Cz])
 end
 
 Base.:(==)(cell1::TriclinicPBC, cell2::TriclinicPBC) =
@@ -116,71 +87,84 @@ Geometry.isinside(R::Vector3D, cell::OrthorhombicPBC) =
 Geometry.isinside(K::Vector3D, ::Kspace) =
 		(0.0 <= K.x < 1.0) && (0.0 <= K.y < 1.0) && (0.0 <= K.z < 1.0)
 
-function Geometry.volume(((a,b,c),(α,β,γ))::PBCGeometry)
+function pbcvolume((a,b,c)::RealTriple, (α,β,γ)::RealTriple)
 	cosα, cosβ, cosγ = cos(α), cos(β), cos(γ)
 	a*b*c * √(1 - cosα^2 - cosβ^2 - cosγ^2 + 2*cosα*cosβ*cosγ)
 end
 
-function Geometry.volume(cell::TriclinicPBC)
-	M = pbcmatrix(cell)
+pbcvolume(cell::TriclinicPBC) = pbcvolume(pbcmatrix(cell))
+
+pbcvolume(M::AbstractMatrix{<:Real}) = pbcvolume(Basis3D(M))
+
+function pbcvolume(M::Basis3D)
 	A, B, C = [M[1:3,i] for i = 1:3]
 	A⋅(B×C)
 end
 
-isrhombododecahedral(((a,b,c),(α,β,γ))::PBCGeometry) =
-		(a ≈ b ≈ c) && (α ≈ β ≈ τ/6) && (γ ≈ τ/4)
+Geometry.volume(cell::TriclinicPBC) = pbcvolume(cell)
 
-isrhombododecahedral(cell::TriclinicPBC) =
-		isrhombododecahedral(pbcgeometry(cell))
+pbcdiff(((a1,b1,c1),(α1,β1,γ1))::Tuple{RealTriple,RealTriple},
+		((a2,b2,c2),(α2,β2,γ2))::Tuple{RealTriple,RealTriple}) =
+		sqrt(abs(a2-a1)^2 + abs(b2-b1)^2 + abs(c2-c1)^2),
+		sqrt(abs(α2-α1)^2 + abs(β2-β1)^2 + abs(γ2-γ1)^2)
 
-isrhombododecahedral(cell::RhombododecahedralPBC) = true
+const deftoledges = 0.01
+const deftolangles = 0.01
 
-isrhombododecahedral(cell::OrthorhombicPBC) = false
-
-function istruncatedoctahedral(((a,b,c),(α,β,γ))::PBCGeometry)
-	θ = arccos(1/3)
-	(a ≈ b ≈ c) && (α ≈ γ ≈ θ) && (β ≈ τ/2 - θ)
+function isequalpbc(((a1,b1,c1),(α1,β1,γ1))::Tuple{RealTriple,RealTriple},
+		((a2,b2,c2),(α2,β2,γ2))::Tuple{RealTriple,RealTriple};
+		toledges::Real = deftoledges, tolangles::Real = deftolangles)
+	dedges, dangles = pbcdiff(((a1,b1,c1),(α1,β1,γ1)), ((a2,b2,c2),(α2,β2,γ2)))
+	dedges <= toledges && dangles <= tolangles
 end
 
-istruncatedoctahedral(cell::TriclinicPBC) =
-		istruncatedoctahedral(pbcgeometry(cell))
+rhombododecahedral((a,b,c)::RealTriple, (α,β,γ)::RealTriple) =
+		(a, a, a), (τ/6, τ/6, τ/4)
 
-istruncatedoctahedral(cell::RhombododecahedralPBC) = false
+isrhombododecahedral((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
+		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		isequalpbc(((a,b,c), (α,β,γ)), rhombododecahedral((a,b,c), (α,β,γ));
+		toledges=toledges, tolangles=tolangles)
 
-istruncatedoctahedral(cell::OrthorhombicPBC) = false
+function truncatedoctahedral((a,b,c)::RealTriple,(α,β,γ)::RealTriple)
+	θ = arcos(1/3)
+	(a, a, a), (θ, τ/2 - θ, θ)
+end
 
-ishexagonal(((a,b,c),(α,β,γ))::PBCGeometry) =
-		(a ≈ b) && (α ≈ β ≈ τ/4) && (γ ≈ τ/3)
+istruncatedoctahedral((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
+		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		isequalpbc(((a,b,c), (α,β,γ)), truncatedoctahedral((a,b,c), (α,β,γ));
+		toledges=toledges, tolangles=tolangles)
 
-ishexagonal(cell::TriclinicPBC) = ishexagonal(pbcgeometry(cell))
+hexagonal((a,b,c)::RealTriple, (α,β,γ)::RealTriple) =
+		(a, a, c), (τ/4, τ/4, τ/3)
 
-ishexagonal(cell::RhombododecahedralPBC) = false
+ishexagonal((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
+		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		isequalpbc(((a,b,c), (α,β,γ)), hexagonal((a,b,c), (α,β,γ));
+		toledges=toledges, tolangles=tolangles)
 
-ishexagonal(cell::OrthorhombicPBC) = false
+orthorhombic((a,b,c)::RealTriple, (α,β,γ)::RealTriple) =
+		(a, b, c), (τ/4, τ/4, τ/4)
 
-isorthorhombic(((a,b,c),(α,β,γ))::PBCGeometry) = (α ≈ β ≈ γ ≈ τ/4)
+isorthorhombic((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
+		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		isequalpbc(((a,b,c), (α,β,γ)), orthorhombic((a,b,c), (α,β,γ));
+		toledges=toledges, tolangles=tolangles)
 
-isorthorhombic(cell::TriclinicPBC) = isorthorhombic(pbcgeometry(cell))
+tetragonal((a,b,c)::RealTriple,(α,β,γ)::RealTriple) = (a, a, c), (τ/4, τ/4, τ/4)
 
-isorthorhombic(cell::RhombododecahedralPBC) = false
+istetragonal((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
+		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		isequalpbc(((a,b,c), (α,β,γ)), tetragonal((a,b,c), (α,β,γ));
+		toledges=toledges, tolangles=tolangles)
 
-isorthorhombic(cell::OrthorhombicPBC) = true
+cubic((a,b,c)::RealTriple, (α,β,γ)::RealTriple) = (a, a, a), (τ/4, τ/4, τ/4)
 
-istetragonal(((a,b,c),(α,β,γ))::PBCGeometry) = (a ≈ b) && (α ≈ β ≈ γ ≈ τ/4)
-
-istetragonal(cell::TriclinicPBC) = istetragonal(pbcgeometry(cell))
-
-istetragonal(cell::RhombododecahedralPBC) = false
-
-istetragonal(cell::OrthorhombicPBC) = (dims(cell).x ≈ dims(cell).y)
-
-iscubic(((a,b,c),(α,β,γ))::PBCGeometry) = (a ≈ b ≈ c) && (α ≈ β ≈ γ ≈ τ/4)
-
-iscubic(cell::TriclinicPBC) = iscubic(pbcgeometry(cell))
-
-iscubic(cell::RhombododecahedralPBC) = false
-
-iscubic(cell::OrthorhombicPBC) = (dims(cell).x ≈ dims(cell).y ≈ dims(cell).z)
+iscubic((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
+		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		isequalpbc(((a,b,c), (α,β,γ)), cubic((a,b,c), (α,β,γ));
+		toledges=toledges, tolangles=tolangles)
 
 struct TriclinicCell <: TriclinicPBC
 	T::LinearTransformation
@@ -190,10 +174,8 @@ struct TriclinicCell <: TriclinicPBC
 			new(LinearTransformation(M), LinearTransformation(inv(M)))
 end
 
-TriclinicCell(edges::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
-		TriclinicCell(pbcmatrix(edges, angles))
-
-TriclinicCell(geometry::PBCGeometry) = TriclinicCell(pbcmatrix(geometry))
+TriclinicCell((a,b,c)::RealTriple,(α,β,γ)::RealTriple) =
+		TriclinicCell(pbcmatrix((a,b,c), (α,β,γ)))
 
 TriclinicCell(cell::TriclinicPBC) = TriclinicCell(pbcmatrix(cell))
 
@@ -207,18 +189,16 @@ struct RhombododecahedralCell <: RhombododecahedralPBC
 	r2::Float64
 
 	function RhombododecahedralCell(a::Real)
-		M = pbcmatrix([a,a,a], [τ/6, τ/6, τ/4])
+		M = pbcmatrix((a,a,a), (τ/6, τ/6, τ/4))
 		new(LinearTransformation(M), LinearTransformation(inv(M)), (a/2)^2)
 	end
 end
-
-RhombododecahedralCell(cell::RhombododecahedralCell) = cell
 
 pbcmatrix(cell::RhombododecahedralCell) = cell.T.M
 
 function pbcgeometry(cell::RhombododecahedralCell)
 	a = 2*sqrt(cell.r2)
-	PBCGeometry(Vector3D(a, a, a), Vector3D(τ/4, τ/6, τ/6))
+	(a,a,a), (τ/6,τ/6,τ/4)
 end
 
 (cell::RhombododecahedralCell)(x) = transform(cell.T, x)
@@ -237,50 +217,45 @@ OrthorhombicCell(xy::Real, z::Real) = OrthorhombicCell([xy, xy, z])
 
 OrthorhombicCell(xyz::Real) = OrthorhombicCell([xyz, xyz, xyz])
 
-OrthorhombicCell(cell::OrthorhombicCell) = cell
-
 pbcmatrix(cell::OrthorhombicCell) = Diagonal(cell.T.V)
 
-pbcgeometry(cell::OrthorhombicCell) =
-		PBCGeometry(dims(cell), Vector3D(τ/4, τ/4, τ/4))
+pbcgeometry(cell::OrthorhombicCell) = (dims(cell)...,), (τ/4,τ/4,τ/4)
 
 Geometry.dims(cell::OrthorhombicCell) = cell.T.V
 
+Geometry.volume(cell::OrthorhombicCell) = prod(dims(cell))
+
 (cell::OrthorhombicCell)(x) = transform(cell.T, x)
 
-pbccell(cell::TriclinicPBC) = pbccell(pbcmatrix(cell))
+pbccell(::Nothing; toledges::Real = deftoledges,
+		tolangles::Real = deftolangles) = nothing
 
-pbccell(cell::RhombododecahedralCell) = cell
+pbccell(cell::TriclinicPBC; toledges::Real = deftoledges,
+		tolangles::Real = deftolangles) =
+		pbccell(pbcgeometry(cell)...; toledges=toledges, tolangles=tolangles)
 
-pbccell(cell::OrthorhombicCell) = cell
+pbccell(cell::RhombododecahedralCell; toledges::Real = deftoledges,
+		tolangles::Real = deftolangles) = cell
 
-pbccell(M::AbstractMatrix{<:Real}) = pbccell(Basis3D(M))
+pbccell(cell::OrthorhombicCell; toledges::Real = deftoledges,
+		tolangles::Real = deftolangles) = cell
 
-function pbccell(M::Basis3D)
-	geometry = pbcgeometry(M)
-	if isrhombododecahedral(geometry)
-		RhombododecahedralCell(geometry.edges[1])
-	elseif isorthorhombic(geometry)
-		OrthorhombicCell(geometry.edges)
+pbccell(M::AbstractMatrix{<:Real}; toledges::Real = deftoledges,
+		tolangles::Real = deftolangles) =
+		pbccell(pbcgeometry(M)...; toledges=toledges, tolangles=tolangles)
+
+function pbccell((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
+		toledges::Real = deftoledges, tolangles::Real = deftolangles)
+	if isrhombododecahedral((a,b,c), (α,β,γ); toledges=toledges,
+			tolangles=tolangles)
+		RhombododecahedralCell(a)
+	elseif isorthorhombic((a,b,c), (α,β,γ); toledges=toledges,
+			tolangles=tolangles)
+		OrthorhombicCell(a, b, c)
 	else
-		TriclinicCell(M)
+		TriclinicCell((a,b,c), (α,β,γ))
 	end
 end
-
-pbccell(edges::AbstractVector{<:Real}, angles::AbstractVector{<:Real}) =
-		pbccell(PBCGeometry(edges, angles))
-
-function pbccell(geometry::PBCGeometry)
-	if isrhombododecahedral(geometry)
-		RhombododecahedralCell(geometry.edges[1])
-	elseif isorthorhombic(geometry)
-		OrthorhombicCell(geometry.edges)
-	else
-		TriclinicCell(pbcmatrix(geometry))
-	end
-end
-
-pbccell(::Nothing) = nothing
 
 wrappos(R::AbstractVector{<:Real}, cell::TriclinicPBC) =
 		wrappos(Vector3D(R), cell)
@@ -749,134 +724,5 @@ function proxilattice(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC, d::Real)
 	lattice = PeriodicProximityLattice(cell, d)
 	fill!(lattice, Kw)
 end
-
-# Below is old position grid stuff
-
-#=
-
-abstract type PositionGrid end
-
-struct NonperiodicPositionGrid <: PositionGrid
-	g3::NonperiodicGrid3D{Int}
-	I::Vector{Tuple{Int,Int,Int}}
-
-	NonperiodicPositionGrid(g3::NonperiodicGrid3D{Int},
-			I::AbstractVector{<:Tuple{Integer,Integer,Integer}}) = new(g3, I)
-end
-
-function NonperiodicPositionGrid()
-	g3 = NonperiodicGrid3D{Int}(extent([0.0,0.0,0.0]), [1.0,1.0,1.0])
-	I = Vector{Tuple{Int,Int,Int}}(undef, 0)
-	NonperiodicPositionGrid(g3, I)
-end
-
-NonperiodicPositionGrid(R::AbstractVector{Vector3D}, d::Real) =
-		NonperiodicPositionGrid(NonperiodicPositionGrid(), R, d)
-
-function NonperiodicPositionGrid(pg::NonperiodicPositionGrid,
-		R::AbstractVector{Vector3D}, d::Real)
-	g3 = resize!(pg.g3, extent(R), [d,d,d])
-	I = resize!(pg.I, length(R))
-	for i in eachindex(R)
-		(x,y,z) = findcell(g3, R[i])
-		push!(g3, (x,y,z), i)
-		I[i] = (x,y,z)
-	end
-	NonperiodicPositionGrid(g3, I)
-end
-
-struct PeriodicPositionGrid{T<:TriclinicPBC} <: PositionGrid
-	g3::PeriodicGrid3D{Int}
-	I::Vector{Tuple{Int,Int,Int}}
-	cell::T
-
-	PeriodicPositionGrid{T}(g3::PeriodicGrid3D{Int},
-			I::AbstractVector{<:Tuple{Integer,Integer,Integer}}, cell::T) where
-			{T<:TriclinicPBC} = new(g3, I, cell)
-end
-
-PeriodicPositionGrid(g3::PeriodicGrid3D{Int},
-		I::AbstractVector{<:Tuple{Integer,Integer,Integer}}, cell::T) where
-		{T<:TriclinicPBC} = PeriodicPositionGrid{T}(g3, I, cell)
-
-function PeriodicPositionGrid(cell::TriclinicPBC)
-	g3 = PeriodicGrid3D{Int}(extent([0.0,0.0,0.0]), [1.0,1.0,1.0])
-	I = Tuple{Int,Int,Int}[]
-	PeriodicPositionGrid(g3, I, cell)
-end
-
-PeriodicPositionGrid(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC,
-		d::Real) = PeriodicPositionGrid(PeriodicPositionGrid(cell), Kw, cell, d)
-
-gridcelldims(cell::TriclinicPBC, d::Real) = Vector3D(1.0, 1.0, 1.0)
-
-gridcelldims(cell::OrthorhombicPBC, d::Real) = inv(cell) * Vector3D(d, d, d)
-
-function gridcelldims(cell::RhombododecahedralPBC, d::Real)
-	r = √(2*d^2)
-	gridcell = RhombododecahedralCell(r)
-	inv(cell) * dims(gridcell)
-end
-
-function PeriodicPositionGrid(pg::PeriodicPositionGrid,
-		Kw::AbstractVector{Vector3D}, cell::TriclinicPBC, d::Real)
-	D = gridcelldims(cell, d)
-	g3 = resize!(pg.g3, extent([0.0,0.0,0.0], [1.0,1.0,1.0]), D)
-	I = resize!(pg.I, length(Kw))
-	for i in eachindex(Kw)
-		(x,y,z) = findcell(g3, Kw[i])
-		push!(g3, (x,y,z), i)
-		I[i] = (x,y,z)
-	end
-	PeriodicPositionGrid(g3, I, cell)
-end
-
-Geometry.findnear(pg::PositionGrid, i::Integer) = findnear!(Int[], pg, i)
-
-Geometry.findnear(pg::PositionGrid, R::AbstractVector{<:Real}) =
-		findnear!(Int[], pg, R)
-
-Geometry.findnear(pg::PositionGrid, Rw::AbstractVector{<:Real},
-		Kw::AbstractVector{<:Real}) = findnear!(Int[], pg, Rw, Kw)
-
-Geometry.findnear!(dest::AbstractVector{<:Integer}, pg::PositionGrid,
-		i::Integer) = findnear!(dest, pg.g3, pg.I[i])
-
-Geometry.findnear!(dest::AbstractVector{<:Integer}, pg::PositionGrid,
-		R::AbstractVector{<:Real}) = findnear!(dest, pg, pbcpos(R, pg.cell)...)
-
-Geometry.findnear!(dest::AbstractVector{<:Integer}, pg::PositionGrid,
-		Rw::AbstractVector{<:Real}, Kw::AbstractVector{<:Real}) =
-		findnear!(dest, pg, Vector3D(Rw), Vector3D(Kw))
-
-Geometry.findnear!(dest::AbstractVector{<:Integer}, pg::PositionGrid,
-		Rw::Vector3D, Kw::Vector3D) = findnear!(dest, pg.g3, Kw)
-
-posgrid(::Nothing) = NonperiodicPositionGrid()
-
-posgrid(cell::TriclinicPBC) = PeriodicPositionGrid(cell)
-
-posgrid(R::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		d::Real) = posgrid(pbcpos(R, cell)..., cell, d)
-
-posgrid(Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
-		::Nothing, d::Real) = NonperiodicPositionGrid(Rw, d)
-
-posgrid(Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
-		cell::TriclinicPBC, d::Real) = PeriodicPositionGrid(Kw, cell, d)
-
-posgrid!(pg::PositionGrid, R::AbstractVector{Vector3D},
-		cell::Union{TriclinicPBC,Nothing}, d::Real) =
-		posgrid(pg, pbcpos(R, cell)..., cell, d)
-
-posgrid!(pg::NonperiodicPositionGrid, Rw::AbstractVector{Vector3D},
-		Kw::AbstractVector{Vector3D}, ::Nothing, d::Real) =
-		NonperiodicPositionGrid(pg, Rw, d)
-
-posgrid!(pg::PeriodicPositionGrid, Rw::AbstractVector{Vector3D},
-		Kw::AbstractVector{Vector3D}, cell::TriclinicPBC, d::Real) =
-		PeriodicPositionGrid(pg, Kw, cell, d)
-
-=#
 
 end # module

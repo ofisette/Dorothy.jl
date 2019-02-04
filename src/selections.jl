@@ -46,6 +46,12 @@ function getss(model::ParticleCollection, cache::SelectionCache)
 	end
 end
 
+function getpbccell(model::ParticleCollection, cache::SelectionCache)
+	get!(getframe(cache), :cell) do
+		pbccell(get(model.header, :cell, nothing))
+	end
+end
+
 function getpbcpos(R::AbstractVector{Vector3D},
 		cell::Union{TriclinicPBC,Nothing}, cache::SelectionCache)
 	get!(getframe(cache), :pbcpos) do
@@ -554,7 +560,7 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 	for i in subset
 		work[i] = false
 	end
-	cell = get(model.header, :cell, nothing)
+	cell = getpbccell(model, cache)
 	Rw, Kw = getpbcpos(model.R, cell, cache)
 	lattice = getproxilattice(Kw, cell, s.d, cache)
 	Rref = s.of(model, cache)
@@ -647,7 +653,7 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 	for i in subset
 		work[i] = false
 	end
-	cell = get(model.header, :cell, nothing)
+	cell = getpbccell(model, cache)
 	Rw, Kw = getpbcpos(model.R, cell, cache)
 	lattice = getproxilattice(Kw, cell, s.d, cache)
 	Iref = findall(map(s.of, model, cache))

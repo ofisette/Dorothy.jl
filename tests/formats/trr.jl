@@ -1,6 +1,7 @@
 using Test
 using Dorothy
 using ..Dorothy.Geometry
+using ..Dorothy.PBC
 using Formats
 using FormatStreams
 

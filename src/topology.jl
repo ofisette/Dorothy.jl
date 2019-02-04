@@ -41,7 +41,7 @@ function infertopology!(topology::AbstractGraph, model::ParticleCollection,
 	@boundscheck length(topology) == length(model) ||
 			error("size mismatch between model and output array")
 	elements = infermissingelements(model)
-	cell = get(model.header, :cell, nothing)
+	cell = pbccell(get(model.header, :cell, nothing))
 	Rw, Kw = pbcpos(model.R, cell)
 	lattice = proxilattice(Kw, cell, strategy.dmax)
 	topcov!(topology, elements, Rw, Kw, cell, lattice, strategy.radii,

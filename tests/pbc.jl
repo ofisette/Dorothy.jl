@@ -15,21 +15,21 @@ datapath = joinpath(@__DIR__, "..", "data")
 
 	@testset "Cell" begin
 		c1 = TriclinicCell(OrthorhombicCell(30.0))
-		sides, angles = pbcgeometry(c1)
-		@test sides == [30.0, 30.0, 30.0]
-		@test angles == [τ/4, τ/4, τ/4]
+		(a,b,c), (α,β,γ) = pbcgeometry(c1)
+		@test [a,b,c] == [30.0,30.0,30.0]
+		@test [α,β,γ] == [τ/4,τ/4,τ/4]
 		M = pbcmatrix(c1)
 		@test M[1,1] == 30.0
 		@test M[1,2] + 1 ≈ 1.0
-		@test c1 == OrthorhombicCell([30.0, 30.0, 30.0])
+		@test c1 == OrthorhombicCell(30.0, 30.0, 30.0)
 		@test c1 == OrthorhombicCell(30.0, 30)
 		@test c1 != OrthorhombicCell(30.0, 25.0)
 		c2 = OrthorhombicCell(30.0)
 		@test c2 == c1
-		@test iscubic(c1)
-		@test iscubic(c2)
+		@test iscubic(pbcgeometry(c1)...)
+		@test iscubic(pbcgeometry(c2)...)
 		@test volume(c1) == 30.0^3
-		@test volume(pbcgeometry(c1)) == 30.0^3
+		@test pbcvolume(pbcgeometry(c1)...) == 30.0^3
 	end
 
 	@testset "Wrap" begin

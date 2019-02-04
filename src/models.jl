@@ -20,7 +20,8 @@ Headers.headerval(::MolecularModelHeader, ::Val{:time}, v::Real) = Float64(v)
 
 Headers.headerval(::MolecularModelHeader, ::Val{:lambda}, v::Real) = Float64(v)
 
-Headers.headerval(::MolecularModelHeader, ::Val{:cell}, v::TriclinicPBC) = v
+Headers.headerval(::MolecularModelHeader, ::Val{:cell}, v::TriclinicPBC) =
+		TriclinicCell(v)
 
 Headers.headerval(::MolecularModelHeader, ::Val{:pressure},
 		v::AbstractMatrix{<:Real}) = Basis3D(v)
