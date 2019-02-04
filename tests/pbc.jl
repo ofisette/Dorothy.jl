@@ -50,10 +50,11 @@ datapath = joinpath(@__DIR__, "..", "data")
 		m1 = readf("$(datapath)/1BTL.pdb")
 		m1.header.cell = OrthorhombicCell([48.0, 64.0, 91.0])
 		protein = view(m1, 1:2032)
+		cell = protein.header.cell
 		prewrapdims = dims(extent(protein.R))
 		m1.R .= wrappos.(m1.R, m1.header.cell)
 		@test all(dims(extent(protein.R)) .>= prewrapdims)
-		unwrap!(protein.R, protein.header.cell)
+		unwrap!(protein.R, cell, UnwrapByGap(cell))
 		unwrappedext = extent(protein.R)
 		@test dims(unwrappedext) ≈ prewrapdims
 		@test all(minimum(unwrappedext) .>= 0.0)

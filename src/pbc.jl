@@ -549,9 +549,6 @@ struct UnwrapByGap <: UnwrapStrategy
 	end
 end
 
-unwrap!(R::AbstractVector{Vector3D}, cell::TriclinicPBC) =
-		unwrap!(R, cell, UnwrapByGap(cell))
-
 function unwrap!(R::AbstractVector{Vector3D}, cell::TriclinicPBC,
 		strategy::UnwrapByGap)
 	@boundscheck length(R) > 1 || error("cannot unwrap fewer than 2 positions")
