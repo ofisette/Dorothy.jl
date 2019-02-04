@@ -186,3 +186,9 @@ Multicollections.itemtocollprop(::Particle, ::Val{:ss}) = :SS
 Multicollections.colltoitemprop(::Particle, ::Val{:SS}) = :ss
 
 Multicollections.collitemname(::MolecularModel) = "particle"
+
+function pbcstrategy(model::ParticleCollection)
+	cell = pbccell(get(model.header, :cell, nothing))
+	Rw, Kw = pbcpos(model.R, cell)
+	cell, Rw, Kw
+end
