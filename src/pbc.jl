@@ -644,7 +644,10 @@ function proxiparams(cell::TriclinicPBC, d::Real)
 	(nx, ny, nz), D
 end
 
-proxidims(cell::TriclinicPBC, d::Real) = Vector3D(1.0, 1.0, 1.0)
+function proxidims(cell::TriclinicPBC, d::Real)
+	r = norm(inv(cell) * Vector3D(d, d, d))
+	Vector3D(r, r, r)
+end
 
 function proxidims(cell::RhombododecahedralPBC, d::Real)
 	r = √(2*d^2)
