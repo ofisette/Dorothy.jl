@@ -74,6 +74,11 @@ function readgromos87!(io::IO, model::MolecularModel;
 	for (i, token) in enumerate(tokens)
 		M[gromos87_cellorder[i]...] = parse(Float64, token) * 10
 	end
+	if length(tokens) == 3 && M[1,1] ≈ M[2,2] ≈ M[3,3] ≈ 0.0
+		cell = nothing
+	else
+		cell = TriclinicCell(M)
+	end
 	lnoffset[] = ln
 
 	@debug "preparing molecular model"
@@ -82,7 +87,9 @@ function readgromos87!(io::IO, model::MolecularModel;
 	if time != nothing
 		model.header.time = time
 	end
-	model.header.cell = TriclinicCell(M)
+	if cell != nothing
+		model.header.cell = cell
+	end
 	ids = get!(model, :ids, undef)
 	names = get!(model, :names, undef)
 	resids = get!(model, :resids, undef)
