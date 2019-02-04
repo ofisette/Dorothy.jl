@@ -189,6 +189,15 @@ Multicollections.collitemname(::MolecularModel) = "particle"
 
 function pbcstrategy(model::ParticleCollection)
 	cell = pbccell(get(model.header, :cell, nothing))
-	Rw, Kw = pbcpos(model.R, cell)
-	cell, Rw, Kw
+	R = model.R
+	Rw, Kw = pbcpos(R, cell)
+	cell, Rw, Kw, R
+end
+
+function pbcstrategy!(Rw::AbstractVector{Vector3D}, 
+		Kw::AbstractVector{Vector3D}, model::ParticleCollection)
+	cell = pbccell(get(model.header, :cell, nothing))
+	R = model.R
+	pbcpos!(Rw, Kw, R, cell)
+	cell, Rw, Kw, R
 end
