@@ -103,10 +103,10 @@ end
 
 Geometry.volume(cell::TriclinicPBC) = pbcvolume(cell)
 
-pbcrms(((a1,b1,c1),(α1,β1,γ1))::Tuple{RealTriple,RealTriple},
+pbcrmsd(((a1,b1,c1),(α1,β1,γ1))::Tuple{RealTriple,RealTriple},
 		((a2,b2,c2),(α2,β2,γ2))::Tuple{RealTriple,RealTriple}) =
-		sqrt(abs(a2-a1)^2 + abs(b2-b1)^2 + abs(c2-c1)^2),
-		sqrt(abs(α2-α1)^2 + abs(β2-β1)^2 + abs(γ2-γ1)^2)
+		sqrt((abs(a2-a1)^2 + abs(b2-b1)^2 + abs(c2-c1)^2) / 3),
+		sqrt((abs(α2-α1)^2 + abs(β2-β1)^2 + abs(γ2-γ1)^2) / 3)
 
 const defedgetol = 0.01
 const defangletol = 0.01
@@ -114,9 +114,9 @@ const defangletol = 0.01
 function isequalpbc(((a1,b1,c1),(α1,β1,γ1))::Tuple{RealTriple,RealTriple},
 		((a2,b2,c2),(α2,β2,γ2))::Tuple{RealTriple,RealTriple};
 		edgetol::Real = defedgetol, angletol::Real = defangletol)
-	rmsedges, rmsangles =
-			pbcrms(((a1,b1,c1),(α1,β1,γ1)), ((a2,b2,c2),(α2,β2,γ2)))
-	(rmsedges <= edgetol) && (rmsangles <= angletol)
+	rmsdedges, rmsdangles =
+			pbcrmsd(((a1,b1,c1),(α1,β1,γ1)), ((a2,b2,c2),(α2,β2,γ2)))
+	(rmsdedges <= edgetol) && (rmsdangles <= angletol)
 end
 
 rhombododecahedral((a,b,c)::RealTriple, (α,β,γ)::RealTriple) =
