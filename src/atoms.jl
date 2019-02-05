@@ -13,6 +13,8 @@ export
 function inferelement(name::AbstractString, resname::AbstractString)
 	if ismonatomicion(resname)
 		titlecase(resname)
+	elseif isvsite(name)
+		"Xx"
 	elseif isempty(name)
 		error("could not infer element from name or resname")
 	else
