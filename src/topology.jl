@@ -96,6 +96,7 @@ function topcov!(topology::AbstractGraph, radii::AbstractVector{<:Real},
 			end
 		end
 	end
+	topology
 end
 
 end
