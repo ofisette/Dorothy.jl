@@ -11,8 +11,8 @@ export
 		wrapid, unwrapids!, unwrapnames!,
 
 		namematcher, isvsite, iswater, isprotein, isacidresidue, isbasicresidue,
-		ischargedresidue, ispolarresidue, ishydrophobicresidue, ismainchain,
-		issidechain, isbackbone, isnuclacid, islipid, ision, ismonatomicion,
+		ischargedresidue, ispolarresidue, ishydrophobicresidue, isbackbone,
+		ismainchain, issidechain, isnuclacid, islipid, ision, ismonatomicion,
 		ispolyatomicion, isalphahelix, ishelix310, ispihelix, isturn, isstrand,
 		isbridge, iscoil, isbend, ishelix, issheet, isloop
 
@@ -325,9 +325,10 @@ const protein_resname_pattern =
 		 polar_protein_resname_pattern...,
 		 hydrophobic_protein_resname_pattern...]
 
-const mainchain_name_pattern = ["N", "H", "CA", "C", "O", "OC1", "OC2", "OXT"]
-
 const backbone_name_pattern = ["N", "CA", "C"]
+
+const mainchain_name_pattern =
+		["H1", "H2", "H3", "N", "H", "CA", "C", "O", "OC1", "OC2", "OXT"]
 
 const nuclacid_resname_pattern = ["A", "C", "G", "U", "DA", "DC", "DG", "DT"]
 
@@ -372,15 +373,15 @@ const ishydrophobicresidue =
 		namematcher(sort(hydrophobic_protein_resname_pattern,
 		by=(resname -> vertebrate_aa_frequencies[resname])))
 
+const isbackbonename = namematcher(backbone_name_pattern)
+
+isbackbone(name, resname) = isbackbonename(name) && isprotein(resname)
+
 const ismainchainname = namematcher(mainchain_name_pattern)
 
 ismainchain(name, resname) = ismainchainname(name) && isprotein(resname)
 
 issidechain(name, resname) = !ismainchainname(name) && isprotein(resname)
-
-const isbackbonename = namematcher(backbone_name_pattern)
-
-isbackbone(name, resname) = isbackbonename(name) && isprotein(resname)
 
 const isnuclacid = namematcher(nuclacid_resname_pattern)
 

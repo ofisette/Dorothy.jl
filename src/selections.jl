@@ -205,7 +205,7 @@ stringpredicate(f) = checkcallable(f)
 
 stringpredicate(s::AbstractString) = namematcher(s)
 
-stringpredicate(S::AbstractVector{<:AbstractString}) = namematcher(s)
+stringpredicate(S::AbstractVector{<:AbstractString}) = namematcher(S)
 
 realpredicate(f) = checkcallable(f)
 
@@ -304,6 +304,29 @@ CachedSelector(s::T, key::Symbol) where {T<:Selector} =
 function select!(results::BitVector, subset::AbstractVector{<:Integer},
 		s::CachedSelector, model::ParticleCollection, cache::SelectionCache)
 	cached::BitVector = get!(cache, s.key) do
+		work = BitVector(undef, length(model))
+		select!(work, eachindex(model), s.s, model, cache)
+		work
+	end
+	for i in subset
+		results[i] = cached[i]
+	end
+end
+
+struct FrameCachedSelector{T<:Selector} <: Selector
+	s::T
+	key::Symbol
+
+	FrameCachedSelector{T}(s::T, key::Symbol) where {T<:Selector} = new(s, key)
+end
+
+FrameCachedSelector(s::T, key::Symbol) where {T<:Selector} =
+		FrameCachedSelector{T}(s, key)
+
+function select!(results::BitVector, subset::AbstractVector{<:Integer},
+		s::FrameCachedSelector, model::ParticleCollection,
+		cache::SelectionCache)
+	cached::BitVector = get!(getframe(cache), s.key) do
 		work = BitVector(undef, length(model))
 		select!(work, eachindex(model), s.s, model, cache)
 		work
@@ -740,8 +763,8 @@ end
 module Selectors
 
 	using ..Dorothy
-	using ..Dorothy.Properties
 	using ..Dorothy.Utils
+	using ..Dorothy.Properties
 
 	export
 			Chain, Residue, Fragment,
@@ -751,11 +774,11 @@ module Selectors
 			Id, Name, ResId, ResName, ChainId, Element, R, V, F, Mass, Charge,
 			BFactor, Occupancy, Charge, SS,
 
-			Hydrogen, Heavy, VSite, Water, Protein, AcidResidue, BasicResidue,
-			ChargedResidue, PolarResidue, HydrophobicResidue, MainChain,
-			SideChain, Backbone, Nter, Cter, NuclAcid, Lipid, Ion, Helix,
-			AlphaHelix, Helix310, PiHelix, Turn, Sheet, Strand, Bridge, Loop,
-			Coil, Bend
+			VSite, Hydrogen, Heavy, Water, Protein, AcidResidue, BasicResidue,
+			ChargedResidue, PolarResidue, HydrophobicResidue, Backbone,
+			MainChain, SideChain, Calpha, Cα, Nter, Cter, NuclAcid, Lipid, Ion,
+			Helix, AlphaHelix, Helix310, PiHelix, Turn, Sheet, Strand, Bridge,
+			Loop, Coil, Bend
 
 	const Model = Dorothy.ModelMode()
 	const Chain = Dorothy.ChainMode()
@@ -842,11 +865,11 @@ module Selectors
 	SS(X...) = Dorothy.PropertySelector(Dorothy.getss,
 			Dorothy.stringpredicate(X...))
 
+	const VSite = Dorothy.CachedSelector(Name(isvsite), :vsites)
+
 	const Hydrogen = Dorothy.CachedSelector(Element("H"), :hydrogens)
 
-	const Heavy = !Hydrogen
-
-	const VSite = Dorothy.CachedSelector(Name(isvsite), :vsites)
+	const Heavy = ! (Hydrogen | VSite)
 
 	const Water = Dorothy.CachedSelector(ResName(iswater), :water)
 
@@ -896,7 +919,7 @@ module Selectors
 
 	const Ion = Dorothy.CachedSelector(ResName(ision), :ion)
 
-	const Helix = Dorothy.CachedSelector(SS(ishelix), :helix)
+	const Helix = Dorothy.FrameCachedSelector(SS(ishelix), :helix)
 
 	const AlphaHelix = SS(isalphahelix)
 
@@ -906,13 +929,13 @@ module Selectors
 
 	const Turn = SS(isturn)
 
-	const Sheet = Dorothy.CachedSelector(SS(issheet), :sheet)
+	const Sheet = Dorothy.FrameCachedSelector(SS(issheet), :sheet)
 
 	const Strand = SS(isstrand)
 
 	const Bridge = SS(isbridge)
 
-	const Loop = Dorothy.CachedSelector(SS(isloop), :loop)
+	const Loop = Dorothy.FrameCachedSelector(SS(isloop), :loop)
 
 	const Coil = SS(iscoil)
 
