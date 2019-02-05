@@ -1,11 +1,7 @@
 using Test
 using Dorothy
-using Dorothy.Hierarchies
-using Dorothy.PBC
-using .Selectors
-using Formats
-using FormatStreams
-using FormatCodecs
+
+@DorothyAll()
 
 datapath = joinpath(@__DIR__, "..", "data")
 

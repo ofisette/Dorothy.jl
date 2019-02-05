@@ -1,9 +1,4 @@
 using Test
-using Dorothy
-using Formats
-using FormatStreams
-
-datapath = joinpath(@__DIR__, "..", "data")
 
 @testset "Dorothy" begin
 

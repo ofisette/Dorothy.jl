@@ -1,8 +1,7 @@
 using Test
 using Dorothy
-using Dorothy.Graphs
-using Formats
-using FormatStreams
+
+@DorothyAll()
 
 datapath = joinpath(@__DIR__, "..", "data")
 

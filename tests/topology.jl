@@ -1,14 +1,7 @@
 using Test
-using LinearAlgebra
 using Dorothy
-using Dorothy.Graphs
-using Dorothy.Geometry
-using Dorothy.Hierarchies
-using Dorothy.PBC
-using Dorothy.Selectors
-using Dorothy.Topology
-using Formats
-using FormatStreams
+
+@DorothyAll()
 
 datapath = joinpath(@__DIR__, "..", "data")
 

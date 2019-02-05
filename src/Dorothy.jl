@@ -12,23 +12,23 @@ export
 		MolecularModelHeader, MolecularModel, MolecularModelView,
 		ParticleCollection, Particle, MolecularTrajectory, pbcstrategy,
 		pbcstrategy!, SelectionCache, SelectionMode, Selector, Selectors,
-		DorothyIO
+		DorothyIO, @DorothyAll
 
 include("utils.jl")
 include("properties.jl")
 include("headers.jl")
 include("graphs.jl")
+include("multicolls.jl")
 include("geometry.jl")
 include("pbc.jl")
-include("multicolls.jl")
 
 using .Utils
 using .Properties
 using .Headers
 using .Graphs
+using .Multicollections
 using .Geometry
 using .PBC
-using .Multicollections
 
 include("models.jl")
 include("atoms.jl")
@@ -61,6 +61,31 @@ include("topology.jl")
 
 using .SecondaryStructure
 using .Topology
+
+macro DorothyAll()
+	return :( using LinearAlgebra,
+			Statistics,
+			Formats,
+			FormatCodecs,
+			FormatStreams,
+			Dorothy,
+			Dorothy.Utils,
+			Dorothy.Properties,
+			Dorothy.Graphs,
+			Dorothy.Multicollections,
+			Dorothy.Geometry,
+			Dorothy.PBC,
+			Dorothy.Atoms,
+			Dorothy.Hierarchies,
+			Dorothy.Selectors,
+			Dorothy.Gromos87,
+			Dorothy.PDB,
+			Dorothy.TRR,
+			Dorothy.XTC,
+			Dorothy.NDX,
+			Dorothy.SecondaryStructure,
+			Dorothy.Topology )
+end
 
 function __init__()
 	register_gromos87()

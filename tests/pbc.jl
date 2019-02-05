@@ -1,13 +1,7 @@
 using Test
 using Dorothy
-using Dorothy.Geometry
-using Dorothy.Hierarchies
-using Dorothy.PBC
-using Dorothy.Utils
-using Formats
-using FormatStreams
 
-using Dorothy.Selectors
+@DorothyAll()
 
 datapath = joinpath(@__DIR__, "..", "data")
 
