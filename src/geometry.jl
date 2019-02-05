@@ -14,8 +14,7 @@ export
 
 		Transformation, transform, Translation, Scaling, LinearTransformation,
 		AffineTransformation, translation, scaling, rotation, superposition,
-		SuperpositionStrategy, SuperposeByKabsch, FitStrategy, FitBySVD,
-		fitline, fitplane, rmsd, msd,
+		SuperpositionBuffer, FitBuffer, fitline, fitplane, rmsd, msd,
 
 		BoundingBox, extent, dims, center, volume, isinside,
 
@@ -348,60 +347,58 @@ function rotation(; x::Union{Real,Nothing} = nothing,
 	end
 end
 
-abstract type SuperpositionStrategy end
-
-mutable struct SuperposeByKabsch <: SuperpositionStrategy
+mutable struct SuperpositionBuffer
 	R::Matrix{Float64}
 	Rref::Matrix{Float64}
 	H::Matrix{Float64}
 	T::Matrix{Float64}
 	center::Bool
 
-	SuperposeByKabsch(; center::Bool = true) =
+	SuperpositionBuffer(; center::Bool = true) =
 			new(Matrix{Float64}(undef, (0,0)), Matrix{Float64}(undef, (0,0)),
 			Matrix{Float64}(undef, (3,3)), Matrix{Float64}(undef, (3,3)),
 			center)
 end
 
 superposition(R::AbstractVector{Vector3D}, Rref::AbstractVector{Vector3D}) =
-		superposition(R, Rref, SuperposeByKabsch())
+		superposition(R, Rref, SuperpositionBuffer())
 
 superposition(R::AbstractVector{Vector3D}, Rref::AbstractVector{Vector3D},
 		W::AbstractVector{<:Real}) =
-		superposition(R, Rref, W, SuperposeByKabsch())
+		superposition(R, Rref, W, SuperpositionBuffer())
 
 superposition(R::AbstractVector{Vector3D}, Rref::AbstractVector{Vector3D},
-		strategy::SuperposeByKabsch) =
-		superposition(R, Rref, Repeated(1.0, length(R)), strategy)
+		buffer::SuperpositionBuffer) =
+		superposition(R, Rref, Repeated(1.0, length(R)), buffer)
 
 function superposition(R::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, W::AbstractVector{<:Real},
-		strategy::SuperposeByKabsch)
+		buffer::SuperpositionBuffer)
 	n = length(R)
 	@boundscheck begin
 		n > 0 || error("fit of zero positions is undefined")
 		length(Rref) == length(W) == n ||
 				error("size mismatch between position/weight arrays")
 	end
-	if ncols(strategy.R) != n
-		strategy.R = Matrix{Float64}(undef, (3,n))
-		strategy.Rref = Matrix{Float64}(undef, (3,n))
+	if ncols(buffer.R) != n
+		buffer.R = Matrix{Float64}(undef, (3,n))
+		buffer.Rref = Matrix{Float64}(undef, (3,n))
 	end
 	for i = 1:n
-		strategy.R[:,i] = R[i]
-		strategy.Rref[:,i] = Rref[i]
+		buffer.R[:,i] = R[i]
+		buffer.Rref[:,i] = Rref[i]
 	end
-	if strategy.center
+	if buffer.center
 		cogR = cog(R)
 		cogRref = cog(Rref)
 		for i = 1:n
-			strategy.R[:,i] -= cogR
-			strategy.Rref[:,i] -= cogRref
+			buffer.R[:,i] -= cogR
+			buffer.Rref[:,i] -= cogRref
 		end
 	end
-	kabsch!(strategy.T, strategy.H, strategy.R, strategy.Rref, W)
-	rotation = LinearTransformation(strategy.T)
-	if strategy.center
+	kabsch!(buffer.T, buffer.H, buffer.R, buffer.Rref, W)
+	rotation = LinearTransformation(buffer.T)
+	if buffer.center
 		translation(cogRref) * rotation * translation(-cogR)
 	else
 		rotation
@@ -419,46 +416,44 @@ function kabsch!(T::AbstractMatrix{<:Real}, H::AbstractMatrix{<:Real},
 	mul!(T, U, V')
 end
 
-abstract type FitStrategy end
-
-mutable struct FitBySVD <:FitStrategy
+mutable struct FitBuffer
 	R::Matrix{Float64}
 	Radj::Matrix{Float64}
 	center::Bool
 
-	FitBySVD(; center::Bool = true) = new(Matrix{Float64}(undef, (0,0)),
+	FitBuffer(; center::Bool = true) = new(Matrix{Float64}(undef, (0,0)),
 			Matrix{Float64}(undef, (0,0)),center)
 end
 
-fitline(R::AbstractVector{Vector3D}) = fitline(R, FitBySVD())
+fitline(R::AbstractVector{Vector3D}) = fitline(R, FitBuffer())
 
 fitline(R::AbstractVector{Vector3D}, W::AbstractVector{<:Real}) =
-		fitline(R, W, FitBySVD())
+		fitline(R, W, FitBuffer())
 
-fitline(R::AbstractVector{Vector3D}, strategy::FitBySVD) =
-		fitline(R, Repeated(1.0, length(R)), strategy)
+fitline(R::AbstractVector{Vector3D}, buffer::FitBuffer) =
+		fitline(R, Repeated(1.0, length(R)), buffer)
 
 function fitline(R::AbstractVector{Vector3D}, W::AbstractVector{<:Real},
-		strategy::FitBySVD)
+		buffer::FitBuffer)
 	n = length(R)
 	@boundscheck begin
 		n > 0 || error("fit of zero positions is undefined")
 		length(W) == n || error("size mismatch between position/weight arrays")
 	end
-	if ncols(strategy.R) != n
-		strategy.R = Matrix{Float64}(undef, (3,n))
-		strategy.Radj = Matrix{Float64}(undef, (n,3))
+	if ncols(buffer.R) != n
+		buffer.R = Matrix{Float64}(undef, (3,n))
+		buffer.Radj = Matrix{Float64}(undef, (n,3))
 	end
 	for i = 1:n
-		strategy.R[:,i] = R[i]
+		buffer.R[:,i] = R[i]
 	end
-	if strategy.center
+	if buffer.center
 		cogR = cog(R)
 		for i = 1:n
-			strategy.R[:,i] -= cogR
+			buffer.R[:,i] -= cogR
 		end
 	end
-	T = svdlinefit!(strategy.Radj, strategy.R, W)
+	T = svdlinefit!(buffer.Radj, buffer.R, W)
 	Vector3D(T)
 end
 
@@ -473,35 +468,35 @@ function svdlinefit!(Radj::AbstractMatrix{<:Real}, R::AbstractMatrix{<:Real},
 	T
 end
 
-fitplane(R::AbstractVector{Vector3D}) = fitplane(R, FitBySVD())
+fitplane(R::AbstractVector{Vector3D}) = fitplane(R, FitBuffer())
 
 fitplane(R::AbstractVector{Vector3D}, W::AbstractVector{<:Real}) =
-		fitplane(R, W, FitBySVD())
+		fitplane(R, W, FitBuffer())
 
-fitplane(R::AbstractVector{Vector3D}, strategy::FitBySVD) =
-		fitplane(R, Repeated(1.0, length(R)), strategy)
+fitplane(R::AbstractVector{Vector3D}, buffer::FitBuffer) =
+		fitplane(R, Repeated(1.0, length(R)), buffer)
 
 function fitplane(R::AbstractVector{Vector3D}, W::AbstractVector{<:Real},
-		strategy::FitBySVD)
+		buffer::FitBuffer)
 	n = length(R)
 	@boundscheck begin
 		n > 0 || error("fit of zero positions is undefined")
 		length(W) == n || error("size mismatch between position/weight arrays")
 	end
-	if ncols(strategy.R) != n
-		strategy.R = Matrix{Float64}(undef, (3,n))
-		strategy.Radj = Matrix{Float64}(undef, (n,3))
+	if ncols(buffer.R) != n
+		buffer.R = Matrix{Float64}(undef, (3,n))
+		buffer.Radj = Matrix{Float64}(undef, (n,3))
 	end
 	for i = 1:n
-		strategy.R[:,i] = R[i]
+		buffer.R[:,i] = R[i]
 	end
-	if strategy.center
+	if buffer.center
 		cogR = cog(R)
 		for i = 1:n
-			strategy.R[:,i] -= cogR
+			buffer.R[:,i] -= cogR
 		end
 	end
-	T = svdplanefit!(strategy.Radj, strategy.R, W)
+	T = svdplanefit!(buffer.Radj, buffer.R, W)
 	Vector3D(T)
 end
 
