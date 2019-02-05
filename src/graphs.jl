@@ -137,7 +137,7 @@ end
 connected(G::AbstractGraph, i::Integer) = connected!(Int[], G, i)
 
 function connected!(dest::AbstractVector{<:Integer}, G::AbstractGraph,
-		i::Integer, skip::AbstractVector{<:Bool} = falses(length(G)))
+		i::Integer, skip::AbstractVector{Bool} = falses(length(G)))
 	@boundscheck checkbounds(G, i)
 	empty!(dest)
 	tmp = Int[]

@@ -313,13 +313,13 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 	end
 end
 
-struct MapSelector{T<:AbstractVector{<:Bool}} <: Selector
+struct MapSelector{T<:AbstractVector{Bool}} <: Selector
 	map::T
 
-	MapSelector{T}(map::T) where {T<:AbstractVector{<:Bool}} = new(map)
+	MapSelector{T}(map::T) where {T<:AbstractVector{Bool}} = new(map)
 end
 
-MapSelector(map::T) where {T<:AbstractVector{<:Bool}} = MapSelector{T}(map)
+MapSelector(map::T) where {T<:AbstractVector{Bool}} = MapSelector{T}(map)
 
 function select!(results::BitVector, subset::AbstractVector{<:Integer},
 		s::MapSelector, model::ParticleCollection, cache::SelectionCache)
@@ -774,7 +774,7 @@ module Selectors
 	Base.:(⊻)(s1::T1, s2::T2) where {T1<:Selector,T2<:Selector} =
 			Dorothy.XorSelector{T1,T2}(s1, s2)
 
-	Map(map::AbstractVector{<:Bool}) = Dorothy.MapSelector(map)
+	Map(map::AbstractVector{Bool}) = Dorothy.MapSelector(map)
 
 	function Map(view::MolecularModelView)
 		model = parent(view)
