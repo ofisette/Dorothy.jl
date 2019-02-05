@@ -666,6 +666,10 @@ function PeriodicProximityLattice(cell::TriclinicPBC, d::Real)
 	PeriodicProximityLattice(grid, D)
 end
 
+Base.length(lattice::ProximityLattice) = length(lattice.grid)
+
+Base.size(lattice::ProximityLattice) = size(lattice.grid)
+
 function Base.fill!(lattice::ProximityLattice, Kw::AbstractVector{Vector3D})
 	sizehint!(lattice.grid, length(Kw))
 	for Kwi in Kw
