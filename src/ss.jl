@@ -26,8 +26,7 @@ export SSInferenceStrategy, inferss, inferss!, SSByStride
 
 abstract type SSInferenceStrategy end
 
-inferss(model::ParticleCollection) =
-		inferss!(Vector{String}(undef, length(model)), model)
+inferss(model::ParticleCollection) = inferss!(fill("", length(model)), model)
 
 inferss!(model::ParticleCollection) = inferss!(get!(model, :SS, ""), model)
 
@@ -53,6 +52,7 @@ function inferss!(SS::AbstractVector{<:AbstractString},
 	residues = mcrp(protein).flath2.tree
 	stride!(view(SS, I), protein.names, protein.resids, protein.resnames,
 			chainids, protein.R, residues, strategy.stridepath)
+	SS
 end
 
 function stride!(SS::AbstractVector{<:AbstractString},
