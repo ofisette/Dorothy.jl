@@ -560,7 +560,7 @@ function msd(R1::AbstractVector{Vector3D}, R2::AbstractVector{Vector3D},
 	sd / length(W)
 end
 
-mutable struct BoundingBox
+struct BoundingBox
 	min::Vector3D
 	max::Vector3D
 
