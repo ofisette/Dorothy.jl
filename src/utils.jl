@@ -3,9 +3,10 @@
 module Utils
 
 export
-		τ, emptyindices, checkindexseries, isindexseries, deleteatmap,
+		tau, τ, emptyindices, checkindexseries, isindexseries, deleteatmap,
 		splicemap, subsetsequal, substrip, wraptext, ncols, nrows, Repeated
 
+const tau = 2π
 const τ = 2π
 
 const emptyindices = Int[]
