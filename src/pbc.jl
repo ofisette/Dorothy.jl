@@ -103,28 +103,29 @@ end
 
 Geometry.volume(cell::TriclinicPBC) = pbcvolume(cell)
 
-pbcdiff(((a1,b1,c1),(α1,β1,γ1))::Tuple{RealTriple,RealTriple},
+pbcrms(((a1,b1,c1),(α1,β1,γ1))::Tuple{RealTriple,RealTriple},
 		((a2,b2,c2),(α2,β2,γ2))::Tuple{RealTriple,RealTriple}) =
 		sqrt(abs(a2-a1)^2 + abs(b2-b1)^2 + abs(c2-c1)^2),
 		sqrt(abs(α2-α1)^2 + abs(β2-β1)^2 + abs(γ2-γ1)^2)
 
-const deftoledges = 0.01
-const deftolangles = 0.01
+const defedgetol = 0.01
+const defangletol = 0.01
 
 function isequalpbc(((a1,b1,c1),(α1,β1,γ1))::Tuple{RealTriple,RealTriple},
 		((a2,b2,c2),(α2,β2,γ2))::Tuple{RealTriple,RealTriple};
-		toledges::Real = deftoledges, tolangles::Real = deftolangles)
-	dedges, dangles = pbcdiff(((a1,b1,c1),(α1,β1,γ1)), ((a2,b2,c2),(α2,β2,γ2)))
-	dedges <= toledges && dangles <= tolangles
+		edgetol::Real = defedgetol, angletol::Real = defangletol)
+	rmsedges, rmsangles =
+			pbcrms(((a1,b1,c1),(α1,β1,γ1)), ((a2,b2,c2),(α2,β2,γ2)))
+	rmsedges <= edgetol && rmsangles <= angletol
 end
 
 rhombododecahedral((a,b,c)::RealTriple, (α,β,γ)::RealTriple) =
 		(a, a, a), (τ/6, τ/6, τ/4)
 
 isrhombododecahedral((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		edgetol::Real = defedgetol, angletol::Real = defangletol) =
 		isequalpbc(((a,b,c), (α,β,γ)), rhombododecahedral((a,b,c), (α,β,γ));
-		toledges=toledges, tolangles=tolangles)
+		edgetol=edgetol, angletol=angletol)
 
 function truncatedoctahedral((a,b,c)::RealTriple,(α,β,γ)::RealTriple)
 	θ = arcos(1/3)
@@ -132,39 +133,39 @@ function truncatedoctahedral((a,b,c)::RealTriple,(α,β,γ)::RealTriple)
 end
 
 istruncatedoctahedral((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		edgetol::Real = defedgetol, angletol::Real = defangletol) =
 		isequalpbc(((a,b,c), (α,β,γ)), truncatedoctahedral((a,b,c), (α,β,γ));
-		toledges=toledges, tolangles=tolangles)
+		edgetol=edgetol, angletol=angletol)
 
 hexagonal((a,b,c)::RealTriple, (α,β,γ)::RealTriple) =
 		(a, a, c), (τ/4, τ/4, τ/3)
 
 ishexagonal((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		edgetol::Real = defedgetol, angletol::Real = defangletol) =
 		isequalpbc(((a,b,c), (α,β,γ)), hexagonal((a,b,c), (α,β,γ));
-		toledges=toledges, tolangles=tolangles)
+		edgetol=edgetol, angletol=angletol)
 
 orthorhombic((a,b,c)::RealTriple, (α,β,γ)::RealTriple) =
 		(a, b, c), (τ/4, τ/4, τ/4)
 
 isorthorhombic((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		edgetol::Real = defedgetol, angletol::Real = defangletol) =
 		isequalpbc(((a,b,c), (α,β,γ)), orthorhombic((a,b,c), (α,β,γ));
-		toledges=toledges, tolangles=tolangles)
+		edgetol=edgetol, angletol=angletol)
 
 tetragonal((a,b,c)::RealTriple,(α,β,γ)::RealTriple) = (a, a, c), (τ/4, τ/4, τ/4)
 
 istetragonal((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		edgetol::Real = defedgetol, angletol::Real = defangletol) =
 		isequalpbc(((a,b,c), (α,β,γ)), tetragonal((a,b,c), (α,β,γ));
-		toledges=toledges, tolangles=tolangles)
+		edgetol=edgetol, angletol=angletol)
 
 cubic((a,b,c)::RealTriple, (α,β,γ)::RealTriple) = (a, a, a), (τ/4, τ/4, τ/4)
 
 iscubic((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		toledges::Real = deftoledges, tolangles::Real = deftolangles) =
+		edgetol::Real = defedgetol, angletol::Real = defangletol) =
 		isequalpbc(((a,b,c), (α,β,γ)), cubic((a,b,c), (α,β,γ));
-		toledges=toledges, tolangles=tolangles)
+		edgetol=edgetol, angletol=angletol)
 
 struct TriclinicCell <: TriclinicPBC
 	T::LinearTransformation
@@ -227,30 +228,30 @@ Geometry.volume(cell::OrthorhombicCell) = prod(dims(cell))
 
 (cell::OrthorhombicCell)(x) = transform(cell.T, x)
 
-pbccell(::Nothing; toledges::Real = deftoledges,
-		tolangles::Real = deftolangles) = nothing
+pbccell(::Nothing; edgetol::Real = defedgetol,
+		angletol::Real = defangletol) = nothing
 
-pbccell(cell::TriclinicPBC; toledges::Real = deftoledges,
-		tolangles::Real = deftolangles) =
-		pbccell(pbcgeometry(cell)...; toledges=toledges, tolangles=tolangles)
+pbccell(cell::TriclinicPBC; edgetol::Real = defedgetol,
+		angletol::Real = defangletol) =
+		pbccell(pbcgeometry(cell)...; edgetol=edgetol, angletol=angletol)
 
-pbccell(cell::RhombododecahedralCell; toledges::Real = deftoledges,
-		tolangles::Real = deftolangles) = cell
+pbccell(cell::RhombododecahedralCell; edgetol::Real = defedgetol,
+		angletol::Real = defangletol) = cell
 
-pbccell(cell::OrthorhombicCell; toledges::Real = deftoledges,
-		tolangles::Real = deftolangles) = cell
+pbccell(cell::OrthorhombicCell; edgetol::Real = defedgetol,
+		angletol::Real = defangletol) = cell
 
-pbccell(M::AbstractMatrix{<:Real}; toledges::Real = deftoledges,
-		tolangles::Real = deftolangles) =
-		pbccell(pbcgeometry(M)...; toledges=toledges, tolangles=tolangles)
+pbccell(M::AbstractMatrix{<:Real}; edgetol::Real = defedgetol,
+		angletol::Real = defangletol) =
+		pbccell(pbcgeometry(M)...; edgetol=edgetol, angletol=angletol)
 
 function pbccell((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		toledges::Real = deftoledges, tolangles::Real = deftolangles)
-	if isrhombododecahedral((a,b,c), (α,β,γ); toledges=toledges,
-			tolangles=tolangles)
+		edgetol::Real = defedgetol, angletol::Real = defangletol)
+	if isrhombododecahedral((a,b,c), (α,β,γ); edgetol=edgetol,
+			angletol=angletol)
 		RhombododecahedralCell(a)
-	elseif isorthorhombic((a,b,c), (α,β,γ); toledges=toledges,
-			tolangles=tolangles)
+	elseif isorthorhombic((a,b,c), (α,β,γ); edgetol=edgetol,
+			angletol=angletol)
 		OrthorhombicCell(a, b, c)
 	else
 		TriclinicCell((a,b,c), (α,β,γ))
