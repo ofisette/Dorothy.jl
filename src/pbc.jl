@@ -116,7 +116,7 @@ function isequalpbc(((a1,b1,c1),(α1,β1,γ1))::Tuple{RealTriple,RealTriple},
 		edgetol::Real = defedgetol, angletol::Real = defangletol)
 	rmsedges, rmsangles =
 			pbcrms(((a1,b1,c1),(α1,β1,γ1)), ((a2,b2,c2),(α2,β2,γ2)))
-	rmsedges <= edgetol && rmsangles <= angletol
+	(rmsedges <= edgetol) && (rmsangles <= angletol)
 end
 
 rhombododecahedral((a,b,c)::RealTriple, (α,β,γ)::RealTriple) =
