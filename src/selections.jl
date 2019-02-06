@@ -79,11 +79,11 @@ function getgrid(f, d::Integer, N::Tuple{Integer,Integer,Integer},
 	get!(f, dbuffers, N)
 end
 
-function getproxilattice(R::AbstractVector{Vector3D}, cell::Nothing,
+function getproximitylattice(R::AbstractVector{Vector3D}, cell::Nothing,
 		d::Real, cache::SelectionCache)
 	ceild = ceil(Int, d)
 	get!(getlattices(cache), ceild) do
-		N, O, D = proxiparams(R, ceild)
+		N, O, D = proximitylatticeparams(R, ceild)
 		grid = getgrid(ceild, N, cache) do
 			NonperiodicGrid3D(N...)
 		end
@@ -92,11 +92,11 @@ function getproxilattice(R::AbstractVector{Vector3D}, cell::Nothing,
 	end
 end
 
-function getproxilattice(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC,
+function getproximitylattice(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC,
 		d::Real, cache::SelectionCache)
 	ceild = ceil(Int, d)
 	get!(getlattices(cache), ceild) do
-		N, D = proxiparams(cell, ceild)
+		N, D = proximitylatticeparams(cell, ceild)
 		grid = getgrid(ceild, N, cache) do
 			PeriodicGrid3D(N...)
 		end
@@ -585,7 +585,7 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 	end
 	cell = getpbccell(model, cache)
 	Rw, Kw = getpbcpos(model.R, cell, cache)
-	lattice = getproxilattice(Kw, cell, s.d, cache)
+	lattice = getproximitylattice(Kw, cell, s.d, cache)
 	Rref = s.of(model, cache)
 	selectwithinpos!(work, s.d, s.by, Rw, Kw, Rref, cell, lattice, model, cache)
 	for i in subset
@@ -678,7 +678,7 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 	end
 	cell = getpbccell(model, cache)
 	Rw, Kw = getpbcpos(model.R, cell, cache)
-	lattice = getproxilattice(Kw, cell, s.d, cache)
+	lattice = getproximitylattice(Kw, cell, s.d, cache)
 	Iref = findall(map(s.of, model, cache))
 	selectwithinsel!(work, s.d, s.by, Rw, Kw, Iref, cell, lattice, model, cache)
 	for i in subset

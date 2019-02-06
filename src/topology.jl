@@ -62,9 +62,9 @@ function infertopology!(topology::AbstractGraph, model::ParticleCollection,
 	H = map(Hydrogen, model)
 	X = .!H
 	cell, Rw, Kw = pbcstrategy(model)
-	XXlattice = proxilattice(Kw, cell, strategy.dmaxXX)
-	XHlattice = proxilattice(Kw, cell, strategy.dmaxXH)
-	HHlattice = proxilattice(Kw, cell, strategy.dmaxHH)
+	XXlattice = proximitylattice(Kw, cell, strategy.dmaxXX)
+	XHlattice = proximitylattice(Kw, cell, strategy.dmaxXH)
+	HHlattice = proximitylattice(Kw, cell, strategy.dmaxHH)
 	topcov!(topology, radii, Rw, Kw, cell, XXlattice, X, X, strategy.rtol)
 	topcov!(topology, radii, Rw, Kw, cell, XHlattice, X, H, strategy.rtol)
 	topcov!(topology, radii, Rw, Kw, cell, HHlattice, H, H, strategy.rtol)

@@ -20,8 +20,8 @@ datapath = joinpath(@__DIR__, "..", "data")
 		@test c1 != OrthorhombicCell(30.0, 25.0)
 		c2 = OrthorhombicCell(30.0)
 		@test c2 == c1
-		@test iscubic(pbcgeometry(c1)...)
-		@test iscubic(pbcgeometry(c2)...)
+		@test ispbc(c1, cubic)
+		@test ispbc(c2, cubic)
 		@test volume(c1) == 30.0^3
 		@test pbcvolume(pbcgeometry(c1)...) == 30.0^3
 	end

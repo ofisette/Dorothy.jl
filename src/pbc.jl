@@ -11,9 +11,8 @@ using StaticArrays
 export
 		TriclinicPBC, RhombododecahedralPBC, OrthorhombicPBC, Kspace, kspace,
 
-		pbcgeometry, pbcmatrix, pbcvolume, isrhombododecahedral,
-		istruncatedoctahedral, ishexagonal, isorthorhombic, istetragonal,
-		iscubic,
+		pbcgeometry, pbcmatrix, pbcvolume, rhombododecahedral,
+		truncatedoctahedral, hexagonal, orthorhombic, tetragonal, cubic, ispbc,
 
 		TriclinicCell, RhombododecahedralCell, OrthorhombicCell, pbccell,
 
@@ -22,9 +21,10 @@ export
 		unwrap!,
 
 		ProximityLattice, NonperiodicProximityLattice, PeriodicProximityLattice,
-		proxiparams, proxilattice
+		proximitylatticeparams, proximitylattice
 
 const RealTriple = Tuple{Real,Real,Real}
+const PBCGeometry = Tuple{RealTriple,RealTriple}
 
 abstract type TriclinicPBC end
 
@@ -103,69 +103,56 @@ end
 
 Geometry.volume(cell::TriclinicPBC) = pbcvolume(cell)
 
-pbcrmsd(((a1,b1,c1),(α1,β1,γ1))::Tuple{RealTriple,RealTriple},
-		((a2,b2,c2),(α2,β2,γ2))::Tuple{RealTriple,RealTriple}) =
-		sqrt((abs(a2-a1)^2 + abs(b2-b1)^2 + abs(c2-c1)^2) / 3),
-		sqrt((abs(α2-α1)^2 + abs(β2-β1)^2 + abs(γ2-γ1)^2) / 3)
-
-const defedgetol = 0.01
-const defangletol = 0.01
-
-function isequalpbc(((a1,b1,c1),(α1,β1,γ1))::Tuple{RealTriple,RealTriple},
-		((a2,b2,c2),(α2,β2,γ2))::Tuple{RealTriple,RealTriple};
-		edgetol::Real = defedgetol, angletol::Real = defangletol)
-	rmsdedges, rmsdangles =
-			pbcrmsd(((a1,b1,c1),(α1,β1,γ1)), ((a2,b2,c2),(α2,β2,γ2)))
-	(rmsdedges <= edgetol) && (rmsdangles <= angletol)
-end
+rhombododecahedral(a::Real) = (a, a, a), (τ/6, τ/6, τ/4)
 
 rhombododecahedral((a,b,c)::RealTriple, (α,β,γ)::RealTriple) =
-		(a, a, a), (τ/6, τ/6, τ/4)
+		rhombododecahedral(a)
 
-isrhombododecahedral((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		edgetol::Real = defedgetol, angletol::Real = defangletol) =
-		isequalpbc(((a,b,c), (α,β,γ)), rhombododecahedral((a,b,c), (α,β,γ));
-		edgetol=edgetol, angletol=angletol)
-
-function truncatedoctahedral((a,b,c)::RealTriple,(α,β,γ)::RealTriple)
+function truncatedoctahedral(a::Real)
 	θ = arcos(1/3)
 	(a, a, a), (θ, τ/2 - θ, θ)
 end
 
-istruncatedoctahedral((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		edgetol::Real = defedgetol, angletol::Real = defangletol) =
-		isequalpbc(((a,b,c), (α,β,γ)), truncatedoctahedral((a,b,c), (α,β,γ));
-		edgetol=edgetol, angletol=angletol)
+truncatedoctahedral((a,b,c)::RealTriple,(α,β,γ)::RealTriple) =
+		truncatedoctahedral(a)
 
 hexagonal((a,b,c)::RealTriple, (α,β,γ)::RealTriple) =
 		(a, a, c), (τ/4, τ/4, τ/3)
 
-ishexagonal((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		edgetol::Real = defedgetol, angletol::Real = defangletol) =
-		isequalpbc(((a,b,c), (α,β,γ)), hexagonal((a,b,c), (α,β,γ));
-		edgetol=edgetol, angletol=angletol)
+orthorhombic(a::Real, b::Real, c::Real) = (a, b, c), (τ/4, τ/4, τ/4)
 
 orthorhombic((a,b,c)::RealTriple, (α,β,γ)::RealTriple) =
-		(a, b, c), (τ/4, τ/4, τ/4)
+		orthorhombic(a, b, c)
 
-isorthorhombic((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		edgetol::Real = defedgetol, angletol::Real = defangletol) =
-		isequalpbc(((a,b,c), (α,β,γ)), orthorhombic((a,b,c), (α,β,γ));
-		edgetol=edgetol, angletol=angletol)
+tetragonal(a::Real, c::Real) = (a, a, c), (τ/4, τ/4, τ/4)
 
-tetragonal((a,b,c)::RealTriple,(α,β,γ)::RealTriple) = (a, a, c), (τ/4, τ/4, τ/4)
+tetragonal((a,b,c)::RealTriple,(α,β,γ)::RealTriple) = tetragonal(a, c)
 
-istetragonal((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		edgetol::Real = defedgetol, angletol::Real = defangletol) =
-		isequalpbc(((a,b,c), (α,β,γ)), tetragonal((a,b,c), (α,β,γ));
-		edgetol=edgetol, angletol=angletol)
+cubic(a::Real) = (a, a, a), (τ/4, τ/4, τ/4)
 
-cubic((a,b,c)::RealTriple, (α,β,γ)::RealTriple) = (a, a, a), (τ/4, τ/4, τ/4)
+cubic((a,b,c)::RealTriple, (α,β,γ)::RealTriple) = cubic(a)
 
-iscubic((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		edgetol::Real = defedgetol, angletol::Real = defangletol) =
-		isequalpbc(((a,b,c), (α,β,γ)), cubic((a,b,c), (α,β,γ));
-		edgetol=edgetol, angletol=angletol)
+pbcrmsd(((a1,b1,c1),(α1,β1,γ1))::PBCGeometry,
+		((a2,b2,c2),(α2,β2,γ2))::PBCGeometry) =
+		sqrt((abs(a2-a1)^2 + abs(b2-b1)^2 + abs(c2-c1)^2) / 3),
+		sqrt((abs(α2-α1)^2 + abs(β2-β1)^2 + abs(γ2-γ1)^2) / 3)
+
+const defpbctol = 0.01, 0.01
+
+function ispbc(((a1,b1,c1),(α1,β1,γ1))::PBCGeometry, geometry;
+		tol::Tuple{Real,Real} = defpbctol)
+	(a2,b2,c2), (α2,β2,γ2) = geometry((a1,b1,c1), (α1,β1,γ1))
+	rmsdedges, rmsdangles =
+			pbcrmsd(((a1,b1,c1),(α1,β1,γ1)), ((a2,b2,c2),(α2,β2,γ2)))
+	edgetol, angletol = tol
+	(rmsdedges <= edgetol) && (rmsdangles <= angletol)
+end
+
+ispbc(M::AbstractMatrix{<:Real}, geometry; tol::Tuple{Real,Real} = defpbctol) =
+		ispbc(pbcgeometry(M), geometry; tol = tol)
+
+ispbc(cell::TriclinicPBC, geometry; tol::Tuple{Real,Real} = defpbctol) =
+		ispbc(pbcgeometry(cell), geometry; tol = tol)
 
 struct TriclinicCell <: TriclinicPBC
 	T::LinearTransformation
@@ -228,30 +215,21 @@ Geometry.volume(cell::OrthorhombicCell) = prod(dims(cell))
 
 (cell::OrthorhombicCell)(x) = transform(cell.T, x)
 
-pbccell(::Nothing; edgetol::Real = defedgetol,
-		angletol::Real = defangletol) = nothing
+pbccell(::Nothing; tol::Tuple{Real,Real} = defpbctol) = nothing
 
-pbccell(cell::TriclinicPBC; edgetol::Real = defedgetol,
-		angletol::Real = defangletol) =
-		pbccell(pbcgeometry(cell)...; edgetol=edgetol, angletol=angletol)
+pbccell(cell::TriclinicPBC; tol::Tuple{Real,Real} = defpbctol) = cell
 
-pbccell(cell::RhombododecahedralCell; edgetol::Real = defedgetol,
-		angletol::Real = defangletol) = cell
+pbccell(cell::TriclinicCell; tol::Tuple{Real,Real} = defpbctol) =
+		pbccell(pbcgeometry(cell)...; tol = tol)
 
-pbccell(cell::OrthorhombicCell; edgetol::Real = defedgetol,
-		angletol::Real = defangletol) = cell
-
-pbccell(M::AbstractMatrix{<:Real}; edgetol::Real = defedgetol,
-		angletol::Real = defangletol) =
-		pbccell(pbcgeometry(M)...; edgetol=edgetol, angletol=angletol)
+pbccell(M::AbstractMatrix{<:Real}; tol::Tuple{Real,Real} = defedgetol) =
+		pbccell(pbcgeometry(M)...; tol = tol)
 
 function pbccell((a,b,c)::RealTriple, (α,β,γ)::RealTriple;
-		edgetol::Real = defedgetol, angletol::Real = defangletol)
-	if isrhombododecahedral((a,b,c), (α,β,γ); edgetol=edgetol,
-			angletol=angletol)
+		tol::Tuple{Real,Real} = defpbctol)
+	if ispbc(((a,b,c), (α,β,γ)), rhombododecahedral; tol = tol)
 		RhombododecahedralCell(a)
-	elseif isorthorhombic((a,b,c), (α,β,γ); edgetol=edgetol,
-			angletol=angletol)
+	elseif ispbc(((a,b,c), (α,β,γ)), orthorhombic; tol = tol)
 		OrthorhombicCell(a, b, c)
 	else
 		TriclinicCell((a,b,c), (α,β,γ))
@@ -610,7 +588,7 @@ end
 
 abstract type ProximityLattice end
 
-function proxiparams(R::AbstractVector{Vector3D}, d::Real)
+function proximitylatticeparams(R::AbstractVector{Vector3D}, d::Real)
 	D = Vector3D(d,d,d)
 	bb = extent(R)
 	O = minimum(bb) - 2*D
@@ -628,12 +606,12 @@ struct NonperiodicProximityLattice <: ProximityLattice
 end
 
 function NonperiodicProximityLattice(R::AbstractVector{Vector3D}, d::Real)
-	N, O, D = proxiparams(R, d)
+	N, O, D = proximitylatticeparams(R, d)
 	grid = NonperiodicGrid3D(N...)
 	NonperiodicProximityLattice(grid, O, D)
 end
 
-function proxiparams(cell::TriclinicPBC, d::Real)
+function proximitylatticeparams(cell::TriclinicPBC, d::Real)
 	D = proxidims(cell, d)
 	nx = max(1, floor(Int, 1 / D.x))
 	ny = max(1, floor(Int, 1 / D.y))
@@ -661,7 +639,7 @@ struct PeriodicProximityLattice <: ProximityLattice
 end
 
 function PeriodicProximityLattice(cell::TriclinicPBC, d::Real)
-	N, D = proxiparams(cell, d)
+	N, D = proximitylatticeparams(cell, d)
 	grid = PeriodicGrid3D(N...)
 	PeriodicProximityLattice(grid, D)
 end
@@ -720,12 +698,13 @@ Geometry.findnear!(dest::AbstractVector{<:Integer}, lattice::ProximityLattice,
 Geometry.findnear!(dest::AbstractVector{<:Integer}, lattice::ProximityLattice,
 		Kw::Vector) = findnear!(dest, lattice.grid, findcell(lattice, Kw))
 
-function proxilattice(R::AbstractVector{Vector3D}, ::Nothing, d::Real)
+function proximitylattice(R::AbstractVector{Vector3D}, ::Nothing, d::Real)
 	lattice = NonperiodicProximityLattice(R, d)
 	fill!(lattice, R)
 end
 
-function proxilattice(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC, d::Real)
+function proximitylattice(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC,
+		d::Real)
 	lattice = PeriodicProximityLattice(cell, d)
 	fill!(lattice, Kw)
 end
