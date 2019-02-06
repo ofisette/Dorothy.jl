@@ -12,5 +12,6 @@ makedocs(
 			"References" => "refs.md"
 			"Software license" => "license.md"
 		]
-	]
+	],
+	assets = ["assets/favicon.ico"]
 )
