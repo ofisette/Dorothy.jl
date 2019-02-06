@@ -317,7 +317,7 @@ function rotation(; x::Union{Real,Nothing} = nothing,
 		O::Union{Real,Nothing} = nothing)
 	if x != nothing
 		if y != nothing || z != nothing
-			error("expected only one of x, y or z as keyword argumen")
+			error("expected only one of x, y or z as keyword argument")
 		end
 		if O == nothing
 			rotation(x, Vector3D(1.0, 0.0, 0.0))
@@ -326,7 +326,7 @@ function rotation(; x::Union{Real,Nothing} = nothing,
 		end
 	elseif y != nothing
 		if x != nothing || z != nothing
-			error("expected only one of x, y or z as keyword argumen")
+			error("expected only one of x, y or z as keyword argument")
 		end
 		if O == nothing
 			rotation(y, Vector3D(0.0, 1.0, 0.0))
@@ -335,7 +335,7 @@ function rotation(; x::Union{Real,Nothing} = nothing,
 		end
 	elseif z != nothing
 		if x != nothing || y != nothing
-			error("expected only one of x, y or z as keyword argumen")
+			error("expected only one of x, y or z as keyword argument")
 		end
 		if O == nothing
 			rotation(z, Vector3D(0.0, 0.0, 1.0))
