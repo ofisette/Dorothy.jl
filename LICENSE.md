@@ -1,6 +1,6 @@
 The Dorothy.jl package can be used under the terms of the MIT “Expat” License:
 
-> Copyright (c) 2018: Olivier Fisette.
+> Copyright (c) 2019: Olivier Fisette.
 >
 > Permission is hereby granted, free of charge, to any person obtaining a copy
 > of this software and associated documentation files (the "Software"), to deal
