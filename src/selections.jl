@@ -68,23 +68,23 @@ function getlattices(cache::SelectionCache)
 	end
 end
 
-function getgrid(f, d::Integer, N::Tuple{Integer,Integer,Integer},
+function getgrid(f, dmax::Integer, N::Tuple{Integer,Integer,Integer},
 		cache::SelectionCache)
 	buffers = get!(cache, :gridbuffers) do
 		Dict{Int,Dict{Tuple{Int,Int,Int},Grid3D}}()
 	end
-	dbuffers = get!(buffers, d) do
+	dbuffers = get!(buffers, dmax) do
 		Dict{Tuple{Int,Int,Int},Grid3D}()
 	end
 	get!(f, dbuffers, N)
 end
 
 function getproximitylattice(R::AbstractVector{Vector3D}, cell::Nothing,
-		d::Real, cache::SelectionCache)
-	ceild = ceil(Int, d)
-	get!(getlattices(cache), ceild) do
-		N, O, D = proximitylatticeparams(R, ceild)
-		grid = getgrid(ceild, N, cache) do
+		dmax::Real, cache::SelectionCache)
+	ceildmax = ceil(Int, dmax)
+	get!(getlattices(cache), ceildmax) do
+		N, O, D = proximitylatticeparams(R, ceildmax)
+		grid = getgrid(ceildmax, N, cache) do
 			NonperiodicGrid3D(N...)
 		end
 		empty!(grid)
@@ -93,11 +93,11 @@ function getproximitylattice(R::AbstractVector{Vector3D}, cell::Nothing,
 end
 
 function getproximitylattice(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC,
-		d::Real, cache::SelectionCache)
-	ceild = ceil(Int, d)
-	get!(getlattices(cache), ceild) do
-		N, D = proximitylatticeparams(cell, ceild)
-		grid = getgrid(ceild, N, cache) do
+		dmax::Real, cache::SelectionCache)
+	ceildmax = ceil(Int, dmax)
+	get!(getlattices(cache), ceildmax) do
+		N, D = proximitylatticeparams(cell, ceildmax)
+		grid = getgrid(ceildmax, N, cache) do
 			PeriodicGrid3D(N...)
 		end
 		empty!(grid)
@@ -553,28 +553,28 @@ end
 abstract type WithinSelector <: Selector end
 
 struct WithinPositionSelector{T1,T2<:SelectionMode} <: WithinSelector
-	d::Float64
+	dmax::Float64
 	of::T1
 	by::T2
 
-	function WithinPositionSelector{T1,T2}(d::Real, of::T1, by::T2) where
+	function WithinPositionSelector{T1,T2}(dmax::Real, of::T1, by::T2) where
 			{T1,T2<:SelectionMode}
 		if ! iscompatible(WithinSelector, by)
 			error("cannot select within a distance by $(by)")
 		end
-		d > 0.0 || error("expected strictly positive distance")
-		new(d, of, by)
+		dmax > 0.0 || error("expected strictly positive distance")
+		new(dmax, of, by)
 	end
 end
 
 iscompatible(::Type{<:WithinSelector}, by::SelectionMode) =
 		(by == ParticleMode() || iscompatible(ByGroupSelector, by))
 
-WithinPositionSelector(d::Real, of::T1, by::T2) where {T1,T2<:SelectionMode} =
-		WithinPositionSelector{T1,T2}(d, of, by)
+WithinPositionSelector(dmax::Real, of::T1, by::T2) where
+		{T1,T2<:SelectionMode} = WithinPositionSelector{T1,T2}(dmax, of, by)
 
-WithinSelector(d::Real, of, by::SelectionMode) =
-		WithinPositionSelector(d, positionfunction(of), by)
+WithinSelector(dmax::Real, of, by::SelectionMode) =
+		WithinPositionSelector(dmax, positionfunction(of), by)
 
 function select!(results::BitVector, subset::AbstractVector{<:Integer},
 		s::WithinPositionSelector, model::ParticleCollection,
@@ -585,32 +585,33 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 	end
 	cell = getpbccell(model, cache)
 	Rw, Kw = getpbcpos(model.R, cell, cache)
-	lattice = getproximitylattice(Kw, cell, s.d, cache)
+	lattice = getproximitylattice(Kw, cell, s.dmax, cache)
 	Rref = s.of(model, cache)
-	selectwithinpos!(work, s.d, s.by, Rw, Kw, Rref, cell, lattice, model, cache)
+	selectwithinpos!(work, s.dmax, s.by, Rw, Kw, Rref, cell, lattice, model,
+			cache)
 	for i in subset
 		results[i] = work[i]
 	end
 end
 
-selectwithinpos!(results::BitVector, d::Real, by::ParticleMode,
+selectwithinpos!(results::BitVector, dmax::Real, by::ParticleMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
 		lattice::ProximityLattice, model::ParticleCollection,
 		cache::SelectionCache) =
-		selectwithinpos0!(results, d, Rw, Kw, Rref, cell, lattice)
+		selectwithinpos0!(results, dmax, Rw, Kw, Rref, cell, lattice)
 
-function selectwithinpos0!(results::BitVector, d::Real,
+function selectwithinpos0!(results::BitVector, dmax::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
 		lattice::ProximityLattice)
-	d2 = d^2
+	dmax2 = dmax^2
 	J = Int[]
 	for Rrefi in Rref
 		Rrefiw, Krefiw = pbcpos(Rrefi, cell)
 		for j in findnear!(J, lattice, Krefiw)
 			if ! results[j]
-				if sqmindist(Rw[j], Kw[j], Rrefiw, Krefiw, cell) <= d2
+				if sqmindist(Rw[j], Kw[j], Rrefiw, Krefiw, cell) <= dmax2
 					results[j] = true
 				end
 			end
@@ -618,26 +619,26 @@ function selectwithinpos0!(results::BitVector, d::Real,
 	end
 end
 
-selectwithinpos!(results::BitVector, d::Real, by::SelectionMode,
+selectwithinpos!(results::BitVector, dmax::Real, by::SelectionMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
 		lattice::ProximityLattice, model::ParticleCollection,
-		cache::SelectionCache) = selectwithinpos1!(results, d, Rw, Kw, Rref,
+		cache::SelectionCache) = selectwithinpos1!(results, dmax, Rw, Kw, Rref,
 		cell, lattice, geth2(model, by, cache)...)
 
-function selectwithinpos1!(results::BitVector, d::Real,
+function selectwithinpos1!(results::BitVector, dmax::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
 		lattice::ProximityLattice,
 		tree::AbstractVector{<:AbstractVector{<:Integer}},
 		paths::AbstractVector{<:Integer})
-	d2 = d^2
+	dmax2 = dmax^2
 	J = Int[]
 	for Rrefi in Rref
 		Rrefiw, Krefiw = pbcpos(Rrefi, cell)
 		for j in findnear!(J, lattice, Krefiw)
 			if ! results[j]
-				if sqmindist(Rw[j], Kw[j], Rrefiw, Krefiw, cell) <= d2
+				if sqmindist(Rw[j], Kw[j], Rrefiw, Krefiw, cell) <= dmax2
 					for k in tree[paths[j]]
 						results[k] = true
 					end
@@ -648,26 +649,26 @@ function selectwithinpos1!(results::BitVector, d::Real,
 end
 
 struct WithinSelectionSelector{T1<:Selector,T2<:SelectionMode} <: WithinSelector
-	d::Float64
+	dmax::Float64
 	of::T1
 	by::T2
 
-	function WithinSelectionSelector{T1,T2}(d::Real, of::T1, by::T2) where
+	function WithinSelectionSelector{T1,T2}(dmax::Real, of::T1, by::T2) where
 			{T1<:Selector,T2<:SelectionMode}
 		if ! iscompatible(WithinSelector, by)
 			error("cannot select within a distance by $(by)")
 		end
-		d > 0.0 || error("expected strictly positive distance")
-		new(d, of, by)
+		dmax > 0.0 || error("expected strictly positive distance")
+		new(dmax, of, by)
 	end
 end
 
-WithinSelectionSelector(d::Real, of::T1, by::T2) where
+WithinSelectionSelector(dmax::Real, of::T1, by::T2) where
 		{T1<:Selector,T2<:SelectionMode} =
-		WithinSelectionSelector{T1,T2}(d, of, by)
+		WithinSelectionSelector{T1,T2}(dmax, of, by)
 
-WithinSelector(d::Real, of::Selector, by::SelectionMode) =
-		WithinSelectionSelector(d, of, by)
+WithinSelector(dmax::Real, of::Selector, by::SelectionMode) =
+		WithinSelectionSelector(dmax, of, by)
 
 function select!(results::BitVector, subset::AbstractVector{<:Integer},
 		s::WithinSelectionSelector, model::ParticleCollection,
@@ -678,31 +679,32 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 	end
 	cell = getpbccell(model, cache)
 	Rw, Kw = getpbcpos(model.R, cell, cache)
-	lattice = getproximitylattice(Kw, cell, s.d, cache)
+	lattice = getproximitylattice(Kw, cell, s.dmax, cache)
 	Iref = findall(map(s.of, model, cache))
-	selectwithinsel!(work, s.d, s.by, Rw, Kw, Iref, cell, lattice, model, cache)
+	selectwithinsel!(work, s.dmax, s.by, Rw, Kw, Iref, cell, lattice, model,
+			cache)
 	for i in subset
 		results[i] = work[i]
 	end
 end
 
-selectwithinsel!(results::BitVector, d::Real, by::ParticleMode,
+selectwithinsel!(results::BitVector, dmax::Real, by::ParticleMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
 		lattice::ProximityLattice, model::ParticleCollection,
 		cache::SelectionCache) =
-		selectwithinsel0!(results, d, Rw, Kw, Iref, cell, lattice)
+		selectwithinsel0!(results, dmax, Rw, Kw, Iref, cell, lattice)
 
-function selectwithinsel0!(results::BitVector, d::Real,
+function selectwithinsel0!(results::BitVector, dmax::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
 		lattice::ProximityLattice)
-	d2 = d^2
+	dmax2 = dmax^2
 	J = Int[]
 	for i in Iref
 		for j in findnear!(J, lattice, i)
 			if ! results[j]
-				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= d2
+				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= dmax2
 					results[j] = true
 				end
 			end
@@ -710,25 +712,25 @@ function selectwithinsel0!(results::BitVector, d::Real,
 	end
 end
 
-selectwithinsel!(results::BitVector, d::Real, by::SelectionMode,
+selectwithinsel!(results::BitVector, dmax::Real, by::SelectionMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
 		lattice::ProximityLattice, model::ParticleCollection,
-		cache::SelectionCache) = selectwithinsel1!(results, d, Rw, Kw, Iref,
+		cache::SelectionCache) = selectwithinsel1!(results, dmax, Rw, Kw, Iref,
 		cell, lattice, geth2(model, by, cache)...)
 
-function selectwithinsel1!(results::BitVector, d::Real,
+function selectwithinsel1!(results::BitVector, dmax::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
 		lattice::ProximityLattice,
 		tree::AbstractVector{<:AbstractVector{<:Integer}},
 		paths::AbstractVector{<:Integer})
-	d2 = d^2
+	dmax2 = dmax^2
 	J = Int[]
 	for i in Iref
 		for j in findnear!(J, lattice, i)
 			if ! results[j]
-				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= d2
+				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= dmax2
 					for k in tree[paths[j]]
 						results[k] = true
 					end
@@ -815,13 +817,13 @@ module Selectors
 
 	Restrict(s::Selector; by::SelectionMode) = Dorothy.RestrictSelector(s, by)
 
-	Within(d::Real; of) = Dorothy.WithinSelector(d, of, Particle)
+	Within(dmax::Real; of) = Dorothy.WithinSelector(dmax, of, Particle)
 
 	Expand(s::Dorothy.WithinPositionSelector; by::SelectionMode) =
-			Dorothy.WithinPositionSelector(s.d, s.of, by)
+			Dorothy.WithinPositionSelector(s.dmax, s.of, by)
 
 	Expand(s::Dorothy.WithinSelectionSelector; by::SelectionMode) =
-			Dorothy.WithinSelectionSelector(s.d, s.of, by)
+			Dorothy.WithinSelectionSelector(s.dmax, s.of, by)
 
 	Id(X...) = Dorothy.PropertySelector((model, cache) -> model.ids,
 			Dorothy.integerpredicate(X...))
