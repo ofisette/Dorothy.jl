@@ -387,9 +387,10 @@ Base.splice!(G::Graph, i::Integer) = deleteat!(G, i)
 Base.splice!(G::Graph, i::Integer, replacement::AbstractGraph) =
 		splice!(G, i:i, replacement)
 
-Base.splice!(G::Graph, range::UnitRange{<:Integer}) = deleteat!(G, range)
+Base.splice!(G::Graph, range::AbstractUnitRange{<:Integer}) =
+		deleteat!(G, range)
 
-function Base.splice!(G::Graph, range::UnitRange{<:Integer},
+function Base.splice!(G::Graph, range::AbstractUnitRange{<:Integer},
 		replacement::AbstractGraph)
 	@boundscheck begin
 		checkbounds(G, range)

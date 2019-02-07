@@ -339,14 +339,14 @@ Base.splice!(C::Multicollection, i::Integer, replacement::MulticollectionItem) =
 Base.splice!(C::Multicollection, i::Integer,
 		replacement::AbstractMulticollection) = splice!(C, i:i, replacement)
 
-Base.splice!(C::Multicollection, range::UnitRange{<:Integer}) =
+Base.splice!(C::Multicollection, range::AbstractUnitRange{<:Integer}) =
 		deleteat!(C, range)
 
-Base.splice!(C::Multicollection, range::UnitRange{<:Integer},
+Base.splice!(C::Multicollection, range::AbstractUnitRange{<:Integer},
 		replacement::MulticollectionItem) =
 		splice!(C, range, view(parent(replacement), parentindices(replacement)))
 
-function Base.splice!(C::Multicollection, range::UnitRange{<:Integer},
+function Base.splice!(C::Multicollection, range::AbstractUnitRange{<:Integer},
 		replacement::AbstractMulticollection)
 	@boundscheck begin
 		checkbounds(C, range)
