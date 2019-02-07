@@ -8,7 +8,7 @@ using ..Dorothy.Utils
 using StaticArrays
 
 export
-		Vector3D, Basis3D, Matrix3D,
+		Vector3D, Basis3D,
 
 		sqnorm, dist, sqdist, dihedral, com, cog,
 
@@ -31,18 +31,6 @@ StaticArrays.similar_type(::Type{Vector3D}, ::Type{Float64}, ::Size{(3,)}) =
 		Vector3D
 
 const Basis3D = SMatrix{3,3,Float64,9}
-
-struct Matrix3D{T<:AbstractVector{Vector3D}} <: AbstractMatrix{Float64}
-	V::T
-
-	Matrix3D{T}(V::T) where {T<:AbstractVector{Vector3D}} = new(V)
-end
-
-Matrix3D(V::T) where {T<:AbstractVector{Vector3D}} = Matrix3D{T}(V)
-
-Base.size(M::Matrix3D) = (3, length(M.V))
-
-Base.getindex(M::Matrix3D, I::Vararg{Int,2}) = M.V[I[2]][I[1]]
 
 sqnorm(V::AbstractVector{<:Real}) = sqnorm(Vector3D(V))
 
