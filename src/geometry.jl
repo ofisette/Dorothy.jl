@@ -18,7 +18,8 @@ export
 
 		BoundingBox, extent, dims, center, volume, isinside,
 
-		Grid3D, NonperiodicGrid3D, PeriodicGrid3D, findcell, findnear, findnear!
+		Grid3D, NonperiodicGrid3D, PeriodicGrid3D, findcell, findneighbors,
+		findneighbors!
 
 struct Vector3D <: FieldVector{3,Float64}
 	x::Float64
@@ -663,16 +664,16 @@ end
 
 findcell(grid::Grid3D, i::Integer) = grid.I[i]
 
-findnear(grid::Grid3D, i::Integer) = findnear!(Int[], grid, i)
+findneighbors(grid::Grid3D, i::Integer) = findneighbors!(Int[], grid, i)
 
-findnear(grid::Grid3D, (x,y,z)::Tuple{Integer,Integer,Integer}) =
-		findnear!(Int[], grid, (x,y,z))
+findneighbors(grid::Grid3D, (x,y,z)::Tuple{Integer,Integer,Integer}) =
+		findneighbors!(Int[], grid, (x,y,z))
 
-findnear!(dest::AbstractVector{<:Integer}, grid::Grid3D, i::Integer) =
-		findnear!(dest, grid, findcell(grid, i))
+findneighbors!(dest::AbstractVector{<:Integer}, grid::Grid3D, i::Integer) =
+		findneighbors!(dest, grid, findcell(grid, i))
 
-function findnear!(dest::AbstractVector{<:Integer}, grid::NonperiodicGrid3D,
-		(x,y,z)::Tuple{Integer,Integer,Integer})
+function findneighbors!(dest::AbstractVector{<:Integer},
+		grid::NonperiodicGrid3D, (x,y,z)::Tuple{Integer,Integer,Integer})
 	empty!(dest)
 	nx, ny, nz = size(grid)
 	for xi = x-1:x+1
@@ -689,7 +690,7 @@ function findnear!(dest::AbstractVector{<:Integer}, grid::NonperiodicGrid3D,
 	dest
 end
 
-function findnear!(dest::AbstractVector{<:Integer}, grid::PeriodicGrid3D,
+function findneighbors!(dest::AbstractVector{<:Integer}, grid::PeriodicGrid3D,
 		(x,y,z)::Tuple{Integer,Integer,Integer})
 	empty!(dest)
 	nx, ny, nz = size(grid)

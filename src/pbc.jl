@@ -21,7 +21,7 @@ export
 		unwrap!,
 
 		ProximityLattice, NonperiodicProximityLattice, PeriodicProximityLattice,
-		proximitylatticeparams, proximitylattice
+		proximitylatticeparams, proximitylattice, findnear, findnear!
 
 const RealTriple = Tuple{Real,Real,Real}
 const PBCGeometry = Tuple{RealTriple,RealTriple}
@@ -361,8 +361,8 @@ end
 
 function nearestpos(Rw::Vector3D, Kw::Vector3D, O::Vector3D,
 		cell::OrthorhombicPBC)
-	(dx,dy,dz) = O - Rw
-	(x,y,z) = Rw
+	dx, dy, dz = O - Rw
+	x, y, z = Rw
 	if dx > center(cell).x
 		x += dims(cell).x
 	elseif dx < -center(cell).x
@@ -378,7 +378,7 @@ function nearestpos(Rw::Vector3D, Kw::Vector3D, O::Vector3D,
 	elseif dz < -center(cell).z
 		z -= dims(cell).z
 	end
-	Vector3D(x,y,z)
+	Vector3D(x, y, z)
 end
 
 nearestpos(Rw::Vector3D, Kw::Vector3D, O::Vector3D, ::Nothing) = Rw
@@ -395,11 +395,12 @@ nearestpos!(R::AbstractVector{Vector3D}, O::Vector3D,
 
 function nearestpos!(f, R::AbstractVector{Vector3D}, O::Vector3D,
 		cell::Union{TriclinicPBC,Nothing})
-	@boundscheck length(R) > 0 || error("cannot translate zero positions")
-	C::Vector3D = f(R)
-	T = nearestpos(C, O, cell) - C
-	if ! iszero(T)
-		translation(T)(R)
+	if ! isempty(R)
+		C::Vector3D = f(R)
+		T = nearestpos(C, O, cell) - C
+		if ! iszero(T)
+			translation(T)(R)
+		end
 	end
 	R
 end
@@ -686,17 +687,17 @@ function Geometry.findcell(lattice::PeriodicProximityLattice, Kw::Vector3D)
 	x, y, z
 end
 
-Geometry.findnear(lattice::ProximityLattice, i::Integer) =
-		findnear(lattice.grid, i)
+findnear(lattice::ProximityLattice, i::Integer) =
+		findneighbors(lattice.grid, i)
 
-Geometry.findnear(lattice::ProximityLattice, Kw::Vector) =
-		findnear(lattice.grid, findcell(lattice, Kw))
+findnear(lattice::ProximityLattice, Kw::Vector) =
+		findneighbors(lattice.grid, findcell(lattice, Kw))
 
-Geometry.findnear!(dest::AbstractVector{<:Integer}, lattice::ProximityLattice,
-		i::Integer) = findnear!(dest, lattice.grid, i)
+findnear!(dest::AbstractVector{<:Integer}, lattice::ProximityLattice,
+		i::Integer) = findneighbors!(dest, lattice.grid, i)
 
-Geometry.findnear!(dest::AbstractVector{<:Integer}, lattice::ProximityLattice,
-		Kw::Vector) = findnear!(dest, lattice.grid, findcell(lattice, Kw))
+findnear!(dest::AbstractVector{<:Integer}, lattice::ProximityLattice,
+		Kw::Vector) = findneighbors!(dest, lattice.grid, findcell(lattice, Kw))
 
 function proximitylattice(R::AbstractVector{Vector3D}, ::Nothing, d::Real)
 	lattice = NonperiodicProximityLattice(R, d)
