@@ -77,12 +77,12 @@ function mfptree(G::AbstractGraph)
 	n = length(G)
 	model = Vector{Int}[]
 	if n > 0
-		visited = falses(n)
+		reachable = trues(n)
 		i = 1
 		while true
-			fragment = sort!(connected!(Int[], G, i, visited))
+			fragment = sort!(connected!(Int[], G, i, reachable))
 			push!(model, fragment)
-			i = findnext(!, visited, i+1)
+			i = findnext(reachable, i+1)
 			if i == nothing
 				break
 			end

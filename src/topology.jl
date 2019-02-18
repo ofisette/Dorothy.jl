@@ -4,6 +4,7 @@ using ..Dorothy
 using ..Dorothy.Atoms
 using ..Dorothy.Geometry
 using ..Dorothy.Graphs
+using ..Dorothy.Neighbors
 using ..Dorothy.PBC
 using ..Dorothy.Properties
 using ..Dorothy.Selectors
@@ -62,23 +63,24 @@ function infertopology!(topology::AbstractGraph, model::ParticleCollection,
 	H = map(Hydrogen, model)
 	X = .!H
 	cell, Rw, Kw = pbcstrategy(model)
-	XXlattice = proximitylattice(Kw, cell, strategy.dmaxXX)
-	XHlattice = proximitylattice(Kw, cell, strategy.dmaxXH)
-	HHlattice = proximitylattice(Kw, cell, strategy.dmaxHH)
-	topcov!(topology, radii, Rw, Kw, cell, XXlattice, X, X, strategy.rtol)
-	topcov!(topology, radii, Rw, Kw, cell, XHlattice, X, H, strategy.rtol)
-	topcov!(topology, radii, Rw, Kw, cell, HHlattice, H, H, strategy.rtol)
+	nbrtable = NeighborTable(length(Rw), cell)
+	topcov!(topology, radii, Rw, Kw, cell, nbrtable, X, X, strategy.dmaxXX,
+			strategy.rtol)
+	topcov!(topology, radii, Rw, Kw, cell, nbrtable, X, H, strategy.dmaxXH,
+			strategy.rtol)
+	topcov!(topology, radii, Rw, Kw, cell, nbrtable, H, H, strategy.dmaxHH,
+			strategy.rtol)
 	topology
 end
 
 function topcov!(topology::AbstractGraph, radii::AbstractVector{<:Real},
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
-		cell::Union{TriclinicPBC,Nothing}, lattice::ProximityLattice,
+		cell::Union{TriclinicPBC,Nothing}, nbrtable::NeighborTable,
 		Itargets::AbstractVector{Bool}, Jtargets::AbstractVector{Bool},
-		rtol::Real)
+		dmax::Real, rtol::Real)
 	n = length(topology)
 	@boundscheck begin
-		length(radii) == length(Rw) == length(Kw) == length(lattice) ==
+		length(radii) == length(Rw) == length(Kw) == length(nbrtable) ==
 				length(Itargets) == length(Jtargets) == n ||
 				error("size mismatch between property arrays")
 		rtol >= 1.0 || error("expected >= 1.0 relative tolerance")
@@ -86,7 +88,7 @@ function topcov!(topology::AbstractGraph, radii::AbstractVector{<:Real},
 	J = Int[]
 	for i = 1:n
 		if Itargets[i]
-			for j in findnear!(J, lattice, i)
+			for j in findnear!(J, Rw, Kw, i, cell, dmax, nbrtable)
 				if Jtargets[j] && (i != j)
 					if mindist(Rw[i], Kw[i], Rw[j], Kw[j], cell) <
 							rtol * (radii[i] + radii[j])

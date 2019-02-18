@@ -21,6 +21,7 @@ include("graphs.jl")
 include("multicolls.jl")
 include("geometry.jl")
 include("pbc.jl")
+include("neighbors.jl")
 
 using .Utils
 using .Properties
@@ -29,6 +30,7 @@ using .Graphs
 using .Multicollections
 using .Geometry
 using .PBC
+using .Neighbors
 
 include("models.jl")
 include("atoms.jl")
@@ -75,6 +77,7 @@ macro DorothyAll()
 			Dorothy.Multicollections,
 			Dorothy.Geometry,
 			Dorothy.PBC,
+			Dorothy.Neighbors,
 			Dorothy.Atoms,
 			Dorothy.Hierarchies,
 			Dorothy.Selectors,

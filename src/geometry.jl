@@ -16,10 +16,7 @@ export
 		AffineTransformation, translation, scaling, rotation, superposition,
 		SuperpositionBuffer, FitBuffer, fitline, fitplane, rmsd, msd,
 
-		BoundingBox, extent, dims, center, volume, isinside,
-
-		Grid3D, NonperiodicGrid3D, PeriodicGrid3D, findcell, findneighbors,
-		findneighbors!
+		BoundingBox, extent, dims, center, volume, isinside
 
 struct Vector3D <: FieldVector{3,Float64}
 	x::Float64
@@ -593,120 +590,5 @@ isinside(R::Vector3D, bb::BoundingBox) =
 
 isinside(bb1::BoundingBox, bb2::BoundingBox) =
 		isinside(minimum(bb1), bb2) && isinside(maximum(bb1), bb2)
-
-abstract type Grid3D end
-
-function gridargs(nx::Integer, ny::Integer, nz::Integer)
-	@boundscheck nx >= 1 && ny >= 1 && nz >= 1 ||
-			error("expected strictly positive cell count")
-	cells = Array{Vector{Int},3}(undef, (nx,ny,nz))
-	for i in eachindex(cells)
-		cells[i] = Int[]
-	end
-	I = Tuple{Int,Int,Int}[]
-	cells, I
-end
-
-struct NonperiodicGrid3D <: Grid3D
-	cells::Array{Vector{Int},3}
-	I::Vector{Tuple{Int,Int,Int}}
-end
-
-NonperiodicGrid3D(nx::Integer, ny::Integer, nz::Integer) =
-		NonperiodicGrid3D(gridargs(nx, ny, nz)...)
-
-struct PeriodicGrid3D <: Grid3D
-	cells::Array{Vector{Int},3}
-	I::Vector{Tuple{Int,Int,Int}}
-end
-
-PeriodicGrid3D(nx::Integer, ny::Integer, nz::Integer) =
-		PeriodicGrid3D(gridargs(nx, ny, nz)...)
-
-Base.size(grid::Grid3D) = size(grid.cells)
-
-Base.length(grid::Grid3D) = length(grid.I)
-
-function Base.push!(grid::Grid3D, (x,y,z)::Tuple{Integer,Integer,Integer})
-	push!(grid.cells[x,y,z], length(grid.I) + 1)
-	push!(grid.I, (x,y,z))
-end
-
-function Base.empty!(grid::Grid3D)
-	if ! isempty(grid.I)
-		for cell in grid.cells
-			empty!(cell)
-		end
-		empty!(grid.I)
-	end
-end
-
-function Base.sizehint!(grid::Grid3D, n::Integer,
-		ncell::Integer = cld(n, length(grid.cells)))
-	@boundscheck n >= 0 && ncell >= 0 || error("expected positive length")
-	sizehint!(grid.I, n)
-	for cell in grid.cells
-		sizehint!(cell, ncell)
-	end
-end
-
-findcell(grid::Grid3D, i::Integer) = grid.I[i]
-
-findneighbors(grid::Grid3D, i::Integer) = findneighbors!(Int[], grid, i)
-
-findneighbors(grid::Grid3D, (x,y,z)::Tuple{Integer,Integer,Integer}) =
-		findneighbors!(Int[], grid, (x,y,z))
-
-findneighbors!(dest::AbstractVector{<:Integer}, grid::Grid3D, i::Integer) =
-		findneighbors!(dest, grid, findcell(grid, i))
-
-function findneighbors!(dest::AbstractVector{<:Integer},
-		grid::NonperiodicGrid3D, (x,y,z)::Tuple{Integer,Integer,Integer})
-	empty!(dest)
-	nx, ny, nz = size(grid)
-	for xi = x-1:x+1
-		for yi = y-1:y+1
-			for zi = z-1:z+1
-				if 1 <= xi <= nx && 1 <= yi <= ny && 1 <= zi <= nz
-					for i in grid.cells[xi,yi,zi]
-						push!(dest, i)
-					end
-				end
-			end
-		end
-	end
-	dest
-end
-
-function findneighbors!(dest::AbstractVector{<:Integer}, grid::PeriodicGrid3D,
-		(x,y,z)::Tuple{Integer,Integer,Integer})
-	empty!(dest)
-	nx, ny, nz = size(grid)
-	for xi = x-1:x+1
-		for yi = y-1:y+1
-			for zi = z-1:z+1
-				if xi == 0
-					xi = nx
-				elseif xi == nx + 1
-					xi = 1
-				end
-				if yi == 0
-					yi = ny
-				elseif yi == ny + 1
-					yi = 1
-				end
-				if zi == 0
-					zi = nz
-				elseif zi == nz + 1
-					zi = 1
-				end
-				for i in grid.cells[xi,yi,zi]
-					push!(dest, i)
-				end
-			end
-		end
-	end
-	dest
-end
 
 end # module

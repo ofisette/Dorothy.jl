@@ -18,10 +18,7 @@ export
 
 		wrappos, wrappos!, pbcpos, pbcpos!, eachimage, nearestpos, nearestpos!,
 		mindist, sqmindist, UnwrapStrategy, UnwrapByExtent, UnwrapByGap,
-		unwrap!,
-
-		ProximityLattice, NonperiodicProximityLattice, PeriodicProximityLattice,
-		proximitylatticeparams, proximitylattice, findnear, findnear!
+		unwrap!
 
 const RealTriple = Tuple{Real,Real,Real}
 const PBCGeometry = Tuple{RealTriple,RealTriple}
@@ -585,130 +582,6 @@ function unwrap!(K::AbstractVector{Vector3D}, ::Kspace, strategy::UnwrapByGap)
 		end
 	end
 	K
-end
-
-abstract type ProximityLattice end
-
-function proximitylatticeparams(R::AbstractVector{Vector3D}, dmax::Real)
-	D = Vector3D(dmax, dmax, dmax)
-	bb = extent(R)
-	O = minimum(bb) - 2*D
-	Dbb = dims(bb)
-	nx = ceil(Int, Dbb.x / D.x) + 4
-	ny = ceil(Int, Dbb.y / D.y) + 4
-	nz = ceil(Int, Dbb.z / D.z) + 4
-	(nx,ny,nz), O, D
-end
-
-struct NonperiodicProximityLattice <: ProximityLattice
-	grid::NonperiodicGrid3D
-	O::Vector3D
-	D::Vector3D
-end
-
-function NonperiodicProximityLattice(R::AbstractVector{Vector3D}, dmax::Real)
-	N, O, D = proximitylatticeparams(R, dmax)
-	grid = NonperiodicGrid3D(N...)
-	NonperiodicProximityLattice(grid, O, D)
-end
-
-function proximitylatticeparams(cell::TriclinicPBC, dmax::Real)
-	D = proxidims(cell, dmax)
-	nx = max(1, floor(Int, 1 / D.x))
-	ny = max(1, floor(Int, 1 / D.y))
-	nz = max(1, floor(Int, 1 / D.z))
-	D = Vector3D(1.0/nx, 1.0/ny, 1.0/nz)
-	(nx,ny,nz), D
-end
-
-function proxidims(cell::TriclinicPBC, dmax::Real)
-	rmax = norm(inv(cell) * Vector3D(dmax, dmax, dmax))
-	Vector3D(rmax, rmax, rmax)
-end
-
-function proxidims(cell::RhombododecahedralPBC, dmax::Real)
-	rmax = √(2*dmax^2)
-	gridcell = RhombododecahedralCell(rmax)
-	inv(cell) * dims(gridcell)
-end
-
-proxidims(cell::OrthorhombicPBC, dmax::Real) =
-		inv(cell) * Vector3D(dmax, dmax, dmax)
-
-struct PeriodicProximityLattice <: ProximityLattice
-	grid::PeriodicGrid3D
-	D::Vector3D
-end
-
-function PeriodicProximityLattice(cell::TriclinicPBC, dmax::Real)
-	N, D = proximitylatticeparams(cell, dmax)
-	grid = PeriodicGrid3D(N...)
-	PeriodicProximityLattice(grid, D)
-end
-
-Base.length(lattice::ProximityLattice) = length(lattice.grid)
-
-Base.size(lattice::ProximityLattice) = size(lattice.grid)
-
-function Base.fill!(lattice::ProximityLattice, Kw::AbstractVector{Vector3D})
-	sizehint!(lattice.grid, length(Kw))
-	for Kwi in Kw
-		push!(lattice.grid, findcell(lattice, Kwi))
-	end
-	lattice
-end
-
-function Geometry.findcell(lattice::NonperiodicProximityLattice, R::Vector3D)
-	x = floor(Int, (R.x - lattice.O.x) / lattice.D.x) + 1
-	y = floor(Int, (R.y - lattice.O.y) / lattice.D.y) + 1
-	z = floor(Int, (R.z - lattice.O.z) / lattice.D.z) + 1
-	nx, ny, nz = size(lattice.grid)
-	if x < 1
-		x = 1
-	elseif x > nx
-		x = nx
-	end
-	if y < 1
-		y = 1
-	elseif y > ny
-		y = ny
-	end
-	if z < 1
-		z = 1
-	elseif z > nz
-		z = nz
-	end
-	x, y, z
-end
-
-function Geometry.findcell(lattice::PeriodicProximityLattice, Kw::Vector3D)
-	x = floor(Int, Kw.x / lattice.D.x) + 1
-	y = floor(Int, Kw.y / lattice.D.y) + 1
-	z = floor(Int, Kw.z / lattice.D.z) + 1
-	x, y, z
-end
-
-findnear(lattice::ProximityLattice, i::Integer) =
-		findneighbors(lattice.grid, i)
-
-findnear(lattice::ProximityLattice, Kw::Vector) =
-		findneighbors(lattice.grid, findcell(lattice, Kw))
-
-findnear!(dest::AbstractVector{<:Integer}, lattice::ProximityLattice,
-		i::Integer) = findneighbors!(dest, lattice.grid, i)
-
-findnear!(dest::AbstractVector{<:Integer}, lattice::ProximityLattice,
-		Kw::Vector) = findneighbors!(dest, lattice.grid, findcell(lattice, Kw))
-
-function proximitylattice(R::AbstractVector{Vector3D}, ::Nothing, dmax::Real)
-	lattice = NonperiodicProximityLattice(R, dmax)
-	fill!(lattice, R)
-end
-
-function proximitylattice(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC,
-		dmax::Real)
-	lattice = PeriodicProximityLattice(cell, dmax)
-	fill!(lattice, Kw)
 end
 
 end # module

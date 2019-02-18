@@ -6,15 +6,15 @@ end
 
 SelectionCache() = SelectionCache(Dict{Symbol,Any}())
 
-Base.get!(f, cache::SelectionCache, key::Symbol) = get!(f, cache.D, key)
-
-Base.delete!(cache::SelectionCache, key::Symbol) = delete!(cache.D, key)
-
-function getframe(cache::SelectionCache)
-	get!(cache, :frame) do
+function Base.get!(f, cache::SelectionCache, groupkey::Symbol, itemkey::Symbol)
+	group = get!(cache.D, groupkey) do
 		Dict{Symbol,Any}()
 	end
+	get!(f, group, itemkey)
 end
+
+Base.delete!(cache::SelectionCache, groupkey::Symbol) =
+		delete!(cache.D, groupkey)
 
 function getchainids(model::ParticleCollection, cache::SelectionCache)
 	get(model, :chainids) do
@@ -23,14 +23,14 @@ function getchainids(model::ParticleCollection, cache::SelectionCache)
 end
 
 function getelements(model::ParticleCollection, cache::SelectionCache)
-	get!(cache, :elements) do
+	get!(cache, :system, :elements) do
 		infermissingelements(model)
 	end
 end
 
 function getmasses(model::ParticleCollection, cache::SelectionCache)
 	get(model, :masses) do
-		get!(cache, :masses) do
+		get!(cache, :system, :masses) do
 			masses = Vector{Float64}(undef, length(model))
 			elements = getelements(model, cache)
 			infermasses!(masses, model.names, elements)
@@ -40,68 +40,35 @@ end
 
 function getss(model::ParticleCollection, cache::SelectionCache)
 	get(model, :SS) do
-		get!(getframe(cache), :SS) do
+		get!(cache, :frame, :SS) do
 			inferss(model)
 		end
 	end
 end
 
 function getpbccell(model::ParticleCollection, cache::SelectionCache)
-	get!(getframe(cache), :cell) do
+	get!(cache, :frame, :cell) do
 		pbccell(get(model.header, :cell, nothing))
 	end
 end
 
 function getpbcpos(R::AbstractVector{Vector3D},
 		cell::Union{TriclinicPBC,Nothing}, cache::SelectionCache)
-	get!(getframe(cache), :pbcpos) do
-		Rw, Kw = get!(cache, :pbcposbuffer) do
+	get!(cache, :frame, :pbcpos) do
+		Rw, Kw = get!(cache, :buffers, :pbcpos) do
 			similar(R), similar(R)
 		end
 		pbcpos!(Rw, Kw, R, cell)
 	end
 end
 
-function getlattices(cache::SelectionCache)
-	get!(getframe(cache), :lattices) do
-		Dict{Int,ProximityLattice}()
-	end
-end
-
-function getgrid(f, dmax::Integer, N::Tuple{Integer,Integer,Integer},
+function getnbrtable(n::Integer, cell::Union{TriclinicPBC,Nothing},
 		cache::SelectionCache)
-	buffers = get!(cache, :gridbuffers) do
-		Dict{Int,Dict{Tuple{Int,Int,Int},Grid3D}}()
-	end
-	dbuffers = get!(buffers, dmax) do
-		Dict{Tuple{Int,Int,Int},Grid3D}()
-	end
-	get!(f, dbuffers, N)
-end
-
-function getproximitylattice(R::AbstractVector{Vector3D}, cell::Nothing,
-		dmax::Real, cache::SelectionCache)
-	ceildmax = ceil(Int, dmax)
-	get!(getlattices(cache), ceildmax) do
-		N, O, D = proximitylatticeparams(R, ceildmax)
-		grid = getgrid(ceildmax, N, cache) do
-			NonperiodicGrid3D(N...)
+	get!(cache, :frame, :nbrtable) do
+		buffer = get!(cache, :buffers, :nbrtable) do
+			NeighborTableBuffer()
 		end
-		empty!(grid)
-		fill!(NonperiodicProximityLattice(grid, O, D), R)
-	end
-end
-
-function getproximitylattice(Kw::AbstractVector{Vector3D}, cell::TriclinicPBC,
-		dmax::Real, cache::SelectionCache)
-	ceildmax = ceil(Int, dmax)
-	get!(getlattices(cache), ceildmax) do
-		N, D = proximitylatticeparams(cell, ceildmax)
-		grid = getgrid(ceildmax, N, cache) do
-			PeriodicGrid3D(N...)
-		end
-		empty!(grid)
-		fill!(PeriodicProximityLattice(grid, D), Kw)
+		NeighborTable(n, cell, buffer)
 	end
 end
 
@@ -132,7 +99,7 @@ struct ChainMode <: SelectionMode end
 Base.show(io::IO, ::ChainMode) = "chain"
 
 function getmcrp(model::ParticleCollection, cache::SelectionCache)
-	get!(cache, :mcrp) do
+	get!(cache, :system, :mcrp) do
 		mcrp(model)
 	end
 end
@@ -156,15 +123,15 @@ struct FragmentMode <: SelectionMode end
 Base.show(io::IO, ::FragmentMode) = "fragment"
 
 function gettopology(model::ParticleCollection, cache::SelectionCache)
-	get!(cache, :topology) do
-		get(model, :topology) do
-			infertopology!(Graph(length(model)), model)
+	get(model, :topology) do
+		get!(cache, :system, :topology) do
+			infertopology(model)
 		end
 	end
 end
 
 function geth2(model::ParticleCollection, ::FragmentMode, cache::SelectionCache)
-	get!(cache, :mfp) do
+	get!(cache, :system, :mfp) do
 		mfp(mfptree(gettopology(model, cache)), length(model))
 	end
 end
@@ -293,40 +260,19 @@ end
 
 struct CachedSelector{T<:Selector} <: Selector
 	s::T
-	key::Symbol
+	groupkey::Symbol
+	itemkey::Symbol
 
-	CachedSelector{T}(s::T, key::Symbol) where {T<:Selector} = new(s, key)
+	CachedSelector{T}(s::T, groupkey::Symbol, itemkey::Symbol) where
+			{T<:Selector} = new(s, groupkey, itemkey)
 end
 
-CachedSelector(s::T, key::Symbol) where {T<:Selector} =
-		CachedSelector{T}(s, key)
+CachedSelector(s::T, groupkey::Symbol, itemkey::Symbol) where {T<:Selector} =
+		CachedSelector{T}(s, groupkey, itemkey)
 
 function select!(results::BitVector, subset::AbstractVector{<:Integer},
 		s::CachedSelector, model::ParticleCollection, cache::SelectionCache)
-	cached::BitVector = get!(cache, s.key) do
-		work = BitVector(undef, length(model))
-		select!(work, eachindex(model), s.s, model, cache)
-		work
-	end
-	for i in subset
-		results[i] = cached[i]
-	end
-end
-
-struct FrameCachedSelector{T<:Selector} <: Selector
-	s::T
-	key::Symbol
-
-	FrameCachedSelector{T}(s::T, key::Symbol) where {T<:Selector} = new(s, key)
-end
-
-FrameCachedSelector(s::T, key::Symbol) where {T<:Selector} =
-		FrameCachedSelector{T}(s, key)
-
-function select!(results::BitVector, subset::AbstractVector{<:Integer},
-		s::FrameCachedSelector, model::ParticleCollection,
-		cache::SelectionCache)
-	cached::BitVector = get!(getframe(cache), s.key) do
+	cached::BitVector = get!(cache, s.groupkey, s.itemkey) do
 		work = BitVector(undef, length(model))
 		select!(work, eachindex(model), s.s, model, cache)
 		work
@@ -585,9 +531,9 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 	end
 	cell = getpbccell(model, cache)
 	Rw, Kw = getpbcpos(model.R, cell, cache)
-	lattice = getproximitylattice(Kw, cell, s.dmax, cache)
+	nbrtable = getnbrtable(length(Rw), cell, cache)
 	Rref = s.of(model, cache)
-	selectwithinpos!(work, s.dmax, s.by, Rw, Kw, Rref, cell, lattice, model,
+	selectwithinpos!(work, s.dmax, s.by, Rw, Kw, Rref, cell, nbrtable, model,
 			cache)
 	for i in subset
 		results[i] = work[i]
@@ -597,19 +543,19 @@ end
 selectwithinpos!(results::BitVector, dmax::Real, by::ParticleMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		lattice::ProximityLattice, model::ParticleCollection,
+		nbrtable::NeighborTable, model::ParticleCollection,
 		cache::SelectionCache) =
-		selectwithinpos0!(results, dmax, Rw, Kw, Rref, cell, lattice)
+		selectwithinpos0!(results, dmax, Rw, Kw, Rref, cell, nbrtable)
 
 function selectwithinpos0!(results::BitVector, dmax::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		lattice::ProximityLattice)
+		nbrtable::NeighborTable)
 	dmax2 = dmax^2
 	J = Int[]
 	for Rrefi in Rref
 		Rrefiw, Krefiw = pbcpos(Rrefi, cell)
-		for j in findnear!(J, lattice, Krefiw)
+		for j in findnear!(J, Rw, Kw, Rrefiw, Krefiw, cell, dmax, nbrtable)
 			if ! results[j]
 				if sqmindist(Rw[j], Kw[j], Rrefiw, Krefiw, cell) <= dmax2
 					results[j] = true
@@ -622,21 +568,21 @@ end
 selectwithinpos!(results::BitVector, dmax::Real, by::SelectionMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		lattice::ProximityLattice, model::ParticleCollection,
+		nbrtable::NeighborTable, model::ParticleCollection,
 		cache::SelectionCache) = selectwithinpos1!(results, dmax, Rw, Kw, Rref,
-		cell, lattice, geth2(model, by, cache)...)
+		cell, nbrtable, geth2(model, by, cache)...)
 
 function selectwithinpos1!(results::BitVector, dmax::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Rref::AbstractVector{Vector3D}, cell::Union{TriclinicPBC,Nothing},
-		lattice::ProximityLattice,
+		nbrtable::NeighborTable,
 		tree::AbstractVector{<:AbstractVector{<:Integer}},
 		paths::AbstractVector{<:Integer})
 	dmax2 = dmax^2
 	J = Int[]
 	for Rrefi in Rref
 		Rrefiw, Krefiw = pbcpos(Rrefi, cell)
-		for j in findnear!(J, lattice, Krefiw)
+		for j in findnear!(J, Rw, Kw, Rrefiw, Krefiw, cell, dmax, nbrtable)
 			if ! results[j]
 				if sqmindist(Rw[j], Kw[j], Rrefiw, Krefiw, cell) <= dmax2
 					for k in tree[paths[j]]
@@ -679,9 +625,9 @@ function select!(results::BitVector, subset::AbstractVector{<:Integer},
 	end
 	cell = getpbccell(model, cache)
 	Rw, Kw = getpbcpos(model.R, cell, cache)
-	lattice = getproximitylattice(Kw, cell, s.dmax, cache)
+	nbrtable = getnbrtable(length(Rw), cell, cache)
 	Iref = findall(map(s.of, model, cache))
-	selectwithinsel!(work, s.dmax, s.by, Rw, Kw, Iref, cell, lattice, model,
+	selectwithinsel!(work, s.dmax, s.by, Rw, Kw, Iref, cell, nbrtable, model,
 			cache)
 	for i in subset
 		results[i] = work[i]
@@ -691,18 +637,18 @@ end
 selectwithinsel!(results::BitVector, dmax::Real, by::ParticleMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
-		lattice::ProximityLattice, model::ParticleCollection,
+		nbrtable::NeighborTable, model::ParticleCollection,
 		cache::SelectionCache) =
-		selectwithinsel0!(results, dmax, Rw, Kw, Iref, cell, lattice)
+		selectwithinsel0!(results, dmax, Rw, Kw, Iref, cell, nbrtable)
 
 function selectwithinsel0!(results::BitVector, dmax::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
-		lattice::ProximityLattice)
+		nbrtable::NeighborTable)
 	dmax2 = dmax^2
 	J = Int[]
 	for i in Iref
-		for j in findnear!(J, lattice, i)
+		for j in findnear!(J, Rw, Kw, i, cell, dmax, nbrtable)
 			if ! results[j]
 				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= dmax2
 					results[j] = true
@@ -715,20 +661,20 @@ end
 selectwithinsel!(results::BitVector, dmax::Real, by::SelectionMode,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
-		lattice::ProximityLattice, model::ParticleCollection,
+		nbrtable::NeighborTable, model::ParticleCollection,
 		cache::SelectionCache) = selectwithinsel1!(results, dmax, Rw, Kw, Iref,
-		cell, lattice, geth2(model, by, cache)...)
+		cell, nbrtable, geth2(model, by, cache)...)
 
 function selectwithinsel1!(results::BitVector, dmax::Real,
 		Rw::AbstractVector{Vector3D}, Kw::AbstractVector{Vector3D},
 		Iref::AbstractVector{<:Integer}, cell::Union{TriclinicPBC,Nothing},
-		lattice::ProximityLattice,
+		nbrtable::NeighborTable,
 		tree::AbstractVector{<:AbstractVector{<:Integer}},
 		paths::AbstractVector{<:Integer})
 	dmax2 = dmax^2
 	J = Int[]
 	for i in Iref
-		for j in findnear!(J, lattice, i)
+		for j in findnear!(J, Rw, Kw, i, cell, dmax, nbrtable)
 			if ! results[j]
 				if sqmindist(Rw[j], Kw[j], Rw[i], Kw[i], cell) <= dmax2
 					for k in tree[paths[j]]
@@ -867,35 +813,36 @@ module Selectors
 	SS(X...) = Dorothy.PropertySelector(Dorothy.getss,
 			Dorothy.stringpredicate(X...))
 
-	const VSite = Dorothy.CachedSelector(Name(isvsite), :vsites)
+	const VSite = Dorothy.CachedSelector(Name(isvsite), :system, :vsites)
 
-	const Hydrogen = Dorothy.CachedSelector(Element("H"), :hydrogens)
+	const Hydrogen = Dorothy.CachedSelector(Element("H"), :system, :hydrogens)
 
 	const Heavy = ! (Hydrogen | VSite)
 
-	const Water = Dorothy.CachedSelector(ResName(iswater), :water)
+	const Water = Dorothy.CachedSelector(ResName(iswater), :system, :water)
 
-	const Protein = Dorothy.CachedSelector(ResName(isprotein), :protein)
+	const Protein =
+			Dorothy.CachedSelector(ResName(isprotein), :system, :protein)
 
-	const AcidResidue =
-			Dorothy.CachedSelector(ResName(isacidresidue), :acidresidues)
+	const AcidResidue = Dorothy.CachedSelector(ResName(isacidresidue),
+			:system, :acidresidues)
 
-	const BasicResidue =
-			Dorothy.CachedSelector(ResName(isbasicresidue), :basicresidues)
+	const BasicResidue = Dorothy.CachedSelector(ResName(isbasicresidue),
+			:system, :basicresidues)
 
-	const ChargedResidue =
-			Dorothy.CachedSelector(ResName(ischargedresidue), :chargedresidues)
+	const ChargedResidue = Dorothy.CachedSelector(ResName(ischargedresidue),
+			:system, :chargedresidues)
 
-	const PolarResidue =
-			Dorothy.CachedSelector(ResName(ispolarresidue), :polarresidues)
+	const PolarResidue = Dorothy.CachedSelector(ResName(ispolarresidue),
+			:system, :polarresidues)
 
 	const HydrophobicResidue =
 			Dorothy.CachedSelector(ResName(ishydrophobicresidue),
-			:hydrophobicresidues)
+			:system, :hydrophobicresidues)
 
 	const MainChainName =
 			Dorothy.CachedSelector(Name(Properties.ismainchainname),
-			:mainchainnames)
+			:system, :mainchainnames)
 
 	const MainChain = MainChainName & Protein
 
@@ -903,7 +850,7 @@ module Selectors
 
 	const BackboneName =
 			Dorothy.CachedSelector(Name(Properties.isbackbonename),
-			:backbonenames)
+			:system, :backbonenames)
 
 	const Backbone = BackboneName & Protein
 
@@ -915,13 +862,14 @@ module Selectors
 
 	const Cter = Index(last, by=Residue, ineach=Chain) & Protein
 
-	const NuclAcid = Dorothy.CachedSelector(ResName(isnuclacid), :nuclacid)
+	const NuclAcid = Dorothy.CachedSelector(ResName(isnuclacid),
+			:system, :nuclacid)
 
-	const Lipid = Dorothy.CachedSelector(ResName(islipid), :lipid)
+	const Lipid = Dorothy.CachedSelector(ResName(islipid), :system, :lipid)
 
-	const Ion = Dorothy.CachedSelector(ResName(ision), :ion)
+	const Ion = Dorothy.CachedSelector(ResName(ision), :system, :ion)
 
-	const Helix = Dorothy.FrameCachedSelector(SS(ishelix), :helix)
+	const Helix = Dorothy.CachedSelector(SS(ishelix), :frame, :helix)
 
 	const AlphaHelix = SS(isalphahelix)
 
@@ -931,13 +879,13 @@ module Selectors
 
 	const Turn = SS(isturn)
 
-	const Sheet = Dorothy.FrameCachedSelector(SS(issheet), :sheet)
+	const Sheet = Dorothy.CachedSelector(SS(issheet), :frame, :sheet)
 
 	const Strand = SS(isstrand)
 
 	const Bridge = SS(isbridge)
 
-	const Loop = Dorothy.FrameCachedSelector(SS(isloop), :loop)
+	const Loop = Dorothy.CachedSelector(SS(isloop), :frame, :loop)
 
 	const Coil = SS(iscoil)
 

@@ -440,8 +440,6 @@ function Base.iterate(h2::H2Hierarchy, i::Integer = 1)
 	end
 end
 
-Base.IteratorEltype(::Type{<:H2Hierarchy}) = Base.EltypeUnknown()
-
 Base.length(::H2Hierarchy) = 2
 
 function Base.getindex(h2::H2Hierarchy, i::Integer)

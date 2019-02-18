@@ -137,17 +137,17 @@ end
 connected(G::AbstractGraph, i::Integer) = connected!(Int[], G, i)
 
 function connected!(dest::AbstractVector{<:Integer}, G::AbstractGraph,
-		i::Integer, skip::AbstractVector{Bool} = falses(length(G)))
+		i::Integer, reachable::AbstractVector{Bool} = trues(length(G)))
 	@boundscheck checkbounds(G, i)
 	empty!(dest)
 	tmp = Int[]
 	stack = [i]
 	while ! isempty(stack)
 		j = pop!(stack)
-		if ! skip[j]
+		if reachable[j]
 			push!(dest, j)
 			append!(stack, neighbors!(tmp, G, j))
-			skip[j] = true
+			reachable[j] = false
 		end
 	end
 	dest
@@ -157,9 +157,9 @@ follow(G::AbstractGraph, (i, j)::Tuple{Integer,Integer}) = follow!([], (i, j))
 
 function follow!(dest::AbstractVector{<:Integer}, G::AbstractGraph,
 		(i, j)::Tuple{Integer,Integer})
-	skip = falses(length(G))
-	skip[i] = true
-	connected!(dest, G, j, skip)
+	reachable = trues(length(G))
+	reachable[i] = false
+	connected!(dest, G, j, reachable)
 end
 
 function isisolated(G::AbstractGraph, I::AbstractArray{<:Integer})
