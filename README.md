@@ -4,9 +4,9 @@ Julia package for molecular structure manipulation and analysis
 
 ## License
 
-You can use Dorothy under the terms of the MIT “Expat” License; see
-[`LICENSE.md`](https://github.com/ofisette/Dorothy.jl/blob/master/LICENSE.md)
-in the project files, or [Software license](@ref) in the online documentation.
+You can use Dorothy under the terms of the MIT License; see
+[`LICENSE.md`](https://github.com/ofisette/Dorothy.jl/blob/master/LICENSE.md) in
+the project files, or [Software license](@ref) in the online documentation.
 
 ## Status
 
@@ -37,16 +37,18 @@ also available directly from the Julia REPL.
 ## Citing
 
 If you use Dorothy in your research, please cite the software in your
-publications. There is currently no published paper describing Dorothy, but it
+publications. There is currently no published work describing Dorothy, but it
 can still be cited as follows:
 
-> Olivier Fisette. *Dorothy: Julia package for molecular structure manipulation
-> and analysis*, version 0.1, 2019. `https://github.com/ofisette/Dorothy.jl`
+Olivier Fisette. *Dorothy: Julia package for molecular structure manipulation
+and analysis*, version 0.1, 2019. `https://github.com/ofisette/Dorothy.jl`
 
 ## Community
 
 Dorothy is developed by [Olivier Fisette](mailto:olivier.fisette@rub.de) in the
-Center for Theoretical Chemistry at Ruhr-University Bochum, Germany.
+[Molecular Simulation Group](https://molecular-simulation.org/) of Lars V.
+Schäfer at the Center for Theoretical Chemistry of Ruhr-University Bochum,
+Germany.
 
 Contributions, bug reports and feature suggestions are welcome. Development is
 tracked in the project’s [repository](https://github.com/ofisette/Dorothy.jl).
