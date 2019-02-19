@@ -5,12 +5,14 @@ docargs = (
 	sitename="Dorothy.jl",
 	pages = [
 		"Home" => "index.md",
-		"Introduction" => "intro.md",
-		"Manual" => [],
+		"intro.md",
+		"Manual" => [
+			"models.md"
+		],
 		"Development" => [],
 		"Appendices" => [
-			"References" => "refs.md"
-			"Software license" => "license.md"
+			"refs.md",
+			"license.md"
 		]
 	],
 	assets = ["assets/favicon.ico"]
