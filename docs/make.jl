@@ -11,6 +11,7 @@ docargs = (
 			"models.md"
 		],
 		"Development" => [],
+		"Reference" => [],
 		"Appendices" => [
 			"refs.md",
 			"license.md"
