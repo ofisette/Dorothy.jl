@@ -3,12 +3,10 @@ using Dorothy
 
 @DorothyAll()
 
-datapath = joinpath(@__DIR__, "..", "data")
-
 @testset "Secondary structure" begin
 
 	@testset "Inference" begin
-		m1 = readf("$(datapath)/1BTL.gro")
+		m1 = readf("$(Dorothy.datapath)/1BTL.gro")
 		inferss!(m1)
 		@test m1.SS == ["C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "H",
 				"H", "H", "H", "H", "H", "H", "H", "H", "H", "H", "H", "H", "H",

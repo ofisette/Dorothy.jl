@@ -3,12 +3,10 @@ using Dorothy
 
 @DorothyAll()
 
-datapath = joinpath(@__DIR__, "..", "data")
-
 @testset "Atoms" begin
 
 	@testset "Guessing elements" begin
-		m1 = readf("$(datapath)/1BTL.gro")
+		m1 = readf("$(Dorothy.datapath)/1BTL.gro")
 		@test inferelement("CA", "CA") == "Ca"
 		@test inferelement("CL", "CL") == "Cl"
 		@test inferelement("CA", "ASP") == "C"
@@ -19,7 +17,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 	end
 
 	@testset "Guessing masses" begin
-		m1 = readf("$(datapath)/1BTL.gro")
+		m1 = readf("$(Dorothy.datapath)/1BTL.gro")
 		@test infermass("MN1", "") == 0.0
 		@test infermass("HG11", "H") == 1.008
 		@test_throws Exception infermass("", "")

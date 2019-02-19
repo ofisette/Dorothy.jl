@@ -3,8 +3,6 @@ using Dorothy
 
 @DorothyAll()
 
-datapath = joinpath(@__DIR__, "..", "data")
-
 @testset "Geometry" begin
 
 	@testset "Distances" begin
@@ -73,7 +71,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 	end
 
 	@testset "Superposition" begin
-		m1 = readf("$(datapath)/1BTL.pdb")
+		m1 = readf("$(Dorothy.datapath)/1BTL.pdb")
 		m2 = MolecularModel(m1)
 		@test rmsd(m1.R, m2.R) ≈ 0.0
 		m1.R .= translation([25.0, 30.0, -1.0]) * rotation(z = τ/4) *
@@ -85,7 +83,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 	end
 
 	@testset "Fit line" begin
-		m = readf("$(datapath)/1BTL.pdb")
+		m = readf("$(Dorothy.datapath)/1BTL.pdb")
 		infermasses!(m)
 		h1 = view(m, 1:120) # First α helix
 		V = fitline(h1.R)
@@ -95,7 +93,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 	end
 
 	@testset "Fit plane" begin
-		m = readf("$(datapath)/1BTL.pdb")
+		m = readf("$(Dorothy.datapath)/1BTL.pdb")
 		infermasses!(m)
 		h18 = view(m, [1:120; 1866:2032]) # First and last α helices
 		V = fitplane(h18.R)

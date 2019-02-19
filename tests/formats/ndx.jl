@@ -3,12 +3,10 @@ using Dorothy
 
 @DorothyAll()
 
-datapath = joinpath(@__DIR__, "..", "..", "data")
-
 @testset "NDX" begin
 
 	@testset "Read" begin
-		index = readf("$(datapath)/PLC.ndx")
+		index = readf("$(Dorothy.datapath)/PLC.ndx")
 		@test index["system"] == 1:1612871
 		@test index["protein"] == 1:81923
 		@test index["Ahc_mod1"] == 1:5854
@@ -16,7 +14,7 @@ datapath = joinpath(@__DIR__, "..", "..", "data")
 	end
 
 	@testset "Write" begin
-		index1 = readf("$(datapath)/PLC.ndx")
+		index1 = readf("$(Dorothy.datapath)/PLC.ndx")
 		io = IOBuffer()
 		write(specify(io, "text/x-ndx"), index1)
 		seekstart(io)

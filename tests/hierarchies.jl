@@ -3,8 +3,6 @@ using Dorothy
 
 @DorothyAll()
 
-datapath = joinpath(@__DIR__, "..", "data")
-
 @testset "Hierarchies" begin
 
 	@testset "Chains" begin

@@ -3,14 +3,12 @@ using Dorothy
 
 @DorothyAll()
 
-datapath = joinpath(@__DIR__, "..", "..", "data")
-
 @testset "TRR" begin
 
 	@testset "Single" begin
-		f1 = infer("$(datapath)/eMHC.trr")
+		f1 = infer("$(Dorothy.datapath)/eMHC.trr")
 		@test getformat(f1) == "trajectory/x-trr"
-		f2 = infer(open("$(datapath)/eMHC.trr"))
+		f2 = infer(open("$(Dorothy.datapath)/eMHC.trr"))
 		@test getformat(f2) == "trajectory/x-trr"
 		m1 = read(f2)
 		@test m1.header.step == 0
@@ -25,7 +23,7 @@ datapath = joinpath(@__DIR__, "..", "..", "data")
 	end
 
 	@testset "Trajectory" begin
-		streamf("$(datapath)/eMHC.trr") do s
+		streamf("$(Dorothy.datapath)/eMHC.trr") do s
 			@test length(s) == 501
 			frame = MolecularModel()
 			i = 0
@@ -45,7 +43,7 @@ datapath = joinpath(@__DIR__, "..", "..", "data")
 	end
 
 	@testset "Round-trip" begin
-		buffer1 = IOBuffer(read("$(datapath)/eMHC.trr"))
+		buffer1 = IOBuffer(read("$(Dorothy.datapath)/eMHC.trr"))
 		buffer2 = IOBuffer(write=true)
 		traj1 = streamf(buffer1)
 		traj2 = streamf(specify(buffer2, "trajectory/x-trr"),

@@ -3,12 +3,10 @@ using Dorothy
 
 @DorothyAll()
 
-datapath = joinpath(@__DIR__, "..", "..", "data")
-
 @testset "PDB" begin
 
 	@testset "Read" begin
-		m1 = readf("$(datapath)/1BTL.pdb")
+		m1 = readf("$(Dorothy.datapath)/1BTL.pdb")
 		@test length(m1) == 2236
 		(a,b,c), (α,β,γ) = pbcgeometry(m1.header.cell)
 		@test [a,b,c] ≈ [43.1, 64.4, 91.2]
@@ -27,7 +25,7 @@ datapath = joinpath(@__DIR__, "..", "..", "data")
 	end
 
 	@testset "Write" begin
-		m1 = readf("$(datapath)/1BTL.pdb")
+		m1 = readf("$(Dorothy.datapath)/1BTL.pdb")
 		io = IOBuffer()
 		write(specify(io, "structure/x-pdb"), m1)
 		seekstart(io)
@@ -50,7 +48,7 @@ datapath = joinpath(@__DIR__, "..", "..", "data")
 	end
 
 	@testset "Convert" begin
-		m1 = readf("$(datapath)/1BTL.pdb")
+		m1 = readf("$(Dorothy.datapath)/1BTL.pdb")
 		io = IOBuffer()
 		write(specify(io, "structure/x-gro"), m1)
 		seekstart(io)

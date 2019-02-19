@@ -90,6 +90,8 @@ macro DorothyAll()
 			Dorothy.Topology )
 end
 
+datapath = joinpath(@__DIR__, "..", "data")
+
 function __init__()
 	register_gromos87()
 	register_pdb()

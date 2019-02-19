@@ -3,12 +3,10 @@ using Dorothy
 
 @DorothyAll()
 
-datapath = joinpath(@__DIR__, "..", "data")
-
 @testset "Selection" begin
 
 	@testset "1BTL" begin # Small orthorhombic system
-		model = readf("$(datapath)/1BTL.pdb")
+		model = readf("$(Dorothy.datapath)/1BTL.pdb")
 		sel1 = view(model, Water)
 		@test sel1.ids == 2039:2237
 		@test length(view(model, Protein)) == 2032
@@ -26,14 +24,14 @@ datapath = joinpath(@__DIR__, "..", "data")
 	end
 
 	@testset "1BTL-np" begin # Non-periodic system
-		model = readf("$(datapath)/1BTL.pdb")
+		model = readf("$(Dorothy.datapath)/1BTL.pdb")
 		delete!(model.header, :cell)
 		sel1 = view(model, Water & Within(45.0, of=Nter))
 		@test length(sel1) == 188
 	end
 
 	@testset "MHC" begin # Rhombododecahedral system
-		model = readf("$(datapath)/MHC.pdb")
+		model = readf("$(Dorothy.datapath)/MHC.pdb")
 		sel1 = view(model, Water & Within(5.0, of=Protein))
 		@test length(sel1) == 6475
 		sel2 = view(model, Cter)
@@ -99,7 +97,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 	end
 
 	@testset "PLC" begin # Very large orthorhombic system
-		model = readf("$(datapath)/PLC.pdb.bz2")
+		model = readf("$(Dorothy.datapath)/PLC.pdb.bz2")
 		sel1 = view(model, Water & Expand(Within(3.0, of=Lipid), by=Residue))
 		@test length(sel1) == 30474
 		sel2 = view(model, Water & Restrict(Within(3.0, of=Lipid), by=Residue))

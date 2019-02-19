@@ -3,8 +3,6 @@ using Dorothy
 
 @DorothyAll()
 
-datapath = joinpath(@__DIR__, "..", "data")
-
 @testset "PBC" begin
 
 	@testset "Cell" begin
@@ -27,11 +25,11 @@ datapath = joinpath(@__DIR__, "..", "data")
 	end
 
 	@testset "Wrap" begin
-		m1 = readf("$(datapath)/1BTL.pdb")
+		m1 = readf("$(Dorothy.datapath)/1BTL.pdb")
 		@test count(R -> !isinside(R, m1.header.cell), m1.R) == 1268
 		m1.R .= wrappos.(m1.R, m1.header.cell)
 		@test count(R -> !isinside(R, m1.header.cell), m1.R) == 0
-		m2 = readf("$(datapath)/1BTL.pdb")
+		m2 = readf("$(Dorothy.datapath)/1BTL.pdb")
 		translation([-6.0, -3.0, 0.0])(m2.R)
 		cogR = cog(m2.R)
 		@test cogR.x < 0.0 && cogR.y < 0.0 && cogR.z > 0.0
@@ -41,7 +39,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 	end
 
 	@testset "Unwrap" begin
-		m1 = readf("$(datapath)/1BTL.pdb")
+		m1 = readf("$(Dorothy.datapath)/1BTL.pdb")
 		m1.header.cell = OrthorhombicCell([48.0, 64.0, 91.0])
 		protein = view(m1, 1:2032)
 		cell = protein.header.cell
@@ -55,7 +53,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 	end
 
 	@testset "Compact positions" begin
-		model = readf("$(datapath)/MHC.pdb")
+		model = readf("$(Dorothy.datapath)/MHC.pdb")
 		R = model.R
 		cell = model.header.cell
 		R .= wrappos.(R, cell)
@@ -69,7 +67,7 @@ datapath = joinpath(@__DIR__, "..", "data")
 	end
 
 	@testset "Compact COG" begin
-		model = readf("$(datapath)/MHC.pdb")
+		model = readf("$(Dorothy.datapath)/MHC.pdb")
 		R = model.R
 		cell = model.header.cell
 		C = center(cell)
