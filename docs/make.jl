@@ -6,6 +6,7 @@ docargs = (
 	pages = [
 		"Home" => "index.md",
 		"intro.md",
+		"tutorial.md",
 		"Manual" => [
 			"models.md"
 		],
