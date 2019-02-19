@@ -6,7 +6,7 @@ Julia package for molecular structure manipulation and analysis
 
 You can use Dorothy under the terms of the MIT License; see
 [`LICENSE.md`](https://github.com/ofisette/Dorothy.jl/blob/master/LICENSE.md) in
-the project files, or [Software license](@ref) in the online documentation.
+the project files, or [Software license](@ref) in the documentation.
 
 ## Status
 
