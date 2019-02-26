@@ -222,6 +222,9 @@ end
 @inline Base.getindex(C::AbstractMulticollection, i::Integer) =
 		MulticollectionItem(C, i)
 
+@inline Base.getindex(C::Multicollection, I::AbstractVector{<:Integer}) =
+		view(C, I)
+
 @inline Base.getindex(C::Multicollection, key::Symbol) = C.D[key]
 
 @inline Base.getindex(C::MulticollectionView, key::Symbol) = view(C.C[key], C.I)

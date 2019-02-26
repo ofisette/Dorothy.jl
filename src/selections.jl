@@ -88,6 +88,8 @@ end
 Base.view(model::ParticleCollection, s::Selector, cache = SelectionCache()) =
 		MulticollectionView(model, findall(map(s, model, cache)))
 
+Base.getindex(model::ParticleCollection, s::Selector) = view(model, s)
+
 abstract type SelectionMode end
 
 struct ModelMode <: SelectionMode end
