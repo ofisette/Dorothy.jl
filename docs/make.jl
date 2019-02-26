@@ -8,6 +8,7 @@ docargs = (
 		"intro.md",
 		"tutorial.md",
 		"Manual" => [
+			"module.md",
 			"models.md"
 		],
 		"Development" => [],
