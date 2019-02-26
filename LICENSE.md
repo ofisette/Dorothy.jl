@@ -1,4 +1,4 @@
-# Software license
+# License
 
 You can use the Dorothy.jl package under the terms of the MIT License:
 
