@@ -17,8 +17,7 @@ docargs = (
 			"refs.md",
 			"license.md"
 		]
-	],
-	assets = ["assets/favicon.ico"]
+	]
 )
 
 makedocs(;
