@@ -23,10 +23,10 @@ in the same manner.
 ```julia
 using Pkg
 
-Pkg.add("https://github.com/ofisette/Formats.jl")
-Pkg.add("https://github.com/ofisette/FormatCodecs.jl")
-Pkg.add("https://github.com/ofisette/FormatStreams.jl")
-Pkg.add("https://github.com/ofisette/Dorothy.jl")
+Pkg.add(PackageSpec(url="https://github.com/ofisette/Formats.jl"))
+Pkg.add(PackageSpec(url="https://github.com/ofisette/FormatCodecs.jl"))
+Pkg.add(PackageSpec(url="https://github.com/ofisette/FormatStreams.jl"))
+Pkg.add(PackageSpec(url="https://github.com/ofisette/Dorothy.jl"))
 ```
 
 ## Documentation
