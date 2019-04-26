@@ -1,6 +1,6 @@
 # License
 
-You can use the Dorothy.jl package under the terms of the MIT License:
+You can use Dorothy.jl under the terms of the MIT License:
 
 > Copyright (c) 2019: Olivier Fisette.
 >
