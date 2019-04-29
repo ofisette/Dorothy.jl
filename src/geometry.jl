@@ -423,7 +423,7 @@ function fitline(R::AbstractVector{Vector3D}, W::AbstractVector{<:Real},
 		buffer::FitBuffer)
 	n = length(R)
 	@boundscheck begin
-		n > 0 || error("fit of zero positions is undefined")
+		n >= 2 || error("line fit requires two or more positions")
 		length(W) == n || error("size mismatch between position/weight arrays")
 	end
 	if ncols(buffer.R) != n
@@ -466,7 +466,7 @@ function fitplane(R::AbstractVector{Vector3D}, W::AbstractVector{<:Real},
 		buffer::FitBuffer)
 	n = length(R)
 	@boundscheck begin
-		n > 0 || error("fit of zero positions is undefined")
+		n >= 3 || error("plane fit requires three or more positions")
 		length(W) == n || error("size mismatch between position/weight arrays")
 	end
 	if ncols(buffer.R) != n
@@ -490,9 +490,8 @@ function svdplanefit!(Radj::AbstractMatrix{<:Real}, R::AbstractMatrix{<:Real},
 		W::AbstractVector{<:Real})
 	mul!(Radj, Diagonal(W), R')
 	T = svd!(Radj).V[:,3]
-	R1 = Radj'[:,1]
 	Rn = Radj'[:,end]
-	if sign(R1 × Rn ⋅ T) < 0
+	if sign(Rn ⋅ T) < 0
 		T .= .- T
 	end
 	T
