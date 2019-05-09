@@ -475,7 +475,7 @@ struct UnwrapByExtent <: UnwrapStrategy end
 
 function unwrap!(R::AbstractVector{Vector3D}, cell::TriclinicPBC,
 		strategy::UnwrapByExtent)
-	@boundscheck length(R) > 1 || error("cannot unwrap fewer than 2 positions")
+	length(R) > 1 || return R
 	inv(cell)(R)
 	unwrap!(R, kspace, strategy)
 	cell(R)
@@ -483,7 +483,7 @@ end
 
 function unwrap!(K::AbstractVector{Vector3D}, ::Kspace,
 		strategy::UnwrapByExtent)
-	@boundscheck length(K) > 1 || error("cannot unwrap fewer than 2 positions")
+	length(K) > 1 || return K
 	Kdims = dims(extent(K))
 	if Kdims.x > 0.5
 		for i in eachindex(K)
@@ -529,14 +529,14 @@ end
 
 function unwrap!(R::AbstractVector{Vector3D}, cell::TriclinicPBC,
 		strategy::UnwrapByGap)
-	@boundscheck length(R) > 1 || error("cannot unwrap fewer than 2 positions")
+	length(R) > 1 || return R
 	inv(cell)(R)
 	unwrap!(R, kspace, strategy)
 	cell(R)
 end
 
 function unwrap!(K::AbstractVector{Vector3D}, ::Kspace, strategy::UnwrapByGap)
-	@boundscheck length(K) > 1 || error("cannot unwrap fewer than 2 positions")
+	length(K) > 1 || return K
 	Ks = resize!(strategy.buffer, length(K))
 	Ks .= K
 	sort!(Ks, by = R -> R.x)
